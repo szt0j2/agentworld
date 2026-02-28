@@ -4,7 +4,7 @@ use bevy::window::CompositeAlphaMode;
 mod components;
 mod plugins;
 
-use plugins::{AgentPlugin, CameraPlugin, DebugPlugin, EventBridgePlugin, WorldPlugin};
+use plugins::{AgentPlugin, CameraPlugin, DebugPlugin, EventBridgePlugin, VisualsPlugin, WorldPlugin};
 
 fn main() {
     App::new()
@@ -24,6 +24,7 @@ fn main() {
             WorldPlugin,
             EventBridgePlugin,
             AgentPlugin,
+            VisualsPlugin,
             CameraPlugin,
             DebugPlugin,
         ))

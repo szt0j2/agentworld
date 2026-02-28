@@ -1,6 +1,6 @@
 use agent_world_core::{AgentStatus, WorldEvent};
 use bevy::prelude::*;
-use crate::components::{AgentLabel, AgentSprite, MovementTarget, StatusRing};
+use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, MovementTarget, StatusRing};
 use crate::plugins::events::PendingEvents;
 
 pub struct AgentPlugin;
@@ -10,6 +10,7 @@ impl Plugin for AgentPlugin {
         app.add_systems(Update, (
             handle_agent_events,
             move_agents,
+            artifacts_follow_owners,
             update_status_visuals,
         ).chain());
     }
@@ -103,10 +104,10 @@ fn handle_agent_events(
     }
 }
 
-/// Smooth movement toward target position.
+/// Smooth movement toward target position (agents and artifacts).
 fn move_agents(
     time: Res<Time>,
-    mut query: Query<(&mut Transform, &MovementTarget), With<AgentSprite>>,
+    mut query: Query<(&mut Transform, &MovementTarget)>,
 ) {
     for (mut transform, target) in &mut query {
         let current = Vec2::new(transform.translation.x, transform.translation.y);
@@ -121,6 +122,20 @@ fn move_agents(
             } else {
                 transform.translation.x += velocity.x;
                 transform.translation.y += velocity.y;
+            }
+        }
+    }
+}
+
+/// Keep owned artifacts near their owner agent.
+fn artifacts_follow_owners(
+    agents: Query<(&AgentSprite, &Transform), Without<ArtifactSprite>>,
+    mut artifacts: Query<(&ArtifactSprite, &mut MovementTarget)>,
+) {
+    for (art, mut target) in &mut artifacts {
+        if let Some(ref owner_id) = art.owner {
+            if let Some((_, agent_tf)) = agents.iter().find(|(s, _)| s.agent_id == *owner_id) {
+                target.target = agent_tf.translation.truncate() + Vec2::new(20.0, -10.0);
             }
         }
     }
