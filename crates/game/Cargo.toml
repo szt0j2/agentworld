@@ -1,0 +1,10 @@
+[package]
+name = "agent-world-game"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Bevy-based game visualization for AgentWorld"
+
+[dependencies]
+agent-world-core = { path = "../core" }
+bevy = { version = "0.18", default-features = false, features = ["bevy_render", "bevy_winit", "bevy_sprite", "bevy_text", "bevy_ui", "png", "webgl2", "x11"] }

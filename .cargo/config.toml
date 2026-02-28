@@ -1,0 +1,7 @@
+[build]
+# Default target for `cargo run` during development
+# Use `trunk serve` for WASM builds instead
+# target = "wasm32-unknown-unknown"
+
+[target.wasm32-unknown-unknown]
+runner = "wasm-server-runner"
