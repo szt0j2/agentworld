@@ -297,6 +297,19 @@ function translateEvent(row: {
           },
         });
 
+        // Small position jitter — makes the agent visually "move around" while working
+        const agentData = agents.get(agentId);
+        if (agentData) {
+          const jitterX = (Math.random() - 0.5) * 40;
+          const jitterY = (Math.random() - 0.5) * 40;
+          events.push({
+            AgentMove: {
+              agent_id: agentId,
+              to: { x: agentData.pos.x + jitterX, y: agentData.pos.y + jitterY },
+            },
+          });
+        }
+
         // Show thought with tool context
         const thought = toolInput.description
           || toolInput.command?.substring(0, 40)
@@ -327,6 +340,30 @@ function translateEvent(row: {
             reason: null,
           },
         });
+
+        // File operations create visible artifacts
+        if (toolName === "Write" || toolName === "Edit") {
+          const filePath = toolInput.file_path || "";
+          const fileName = filePath.split("/").pop() || "file";
+          const agentData = agents.get(agentId);
+          const artifactPos = agentData
+            ? { x: agentData.pos.x + 30, y: agentData.pos.y - 20 }
+            : { x: 0, y: 0 };
+
+          events.push({
+            ArtifactCreate: {
+              id: `artifact-${row.id}`,
+              name: fileName,
+              kind: "Code",
+              content_ref: filePath,
+              owner: agentId,
+              quality: 0.8,
+              position: artifactPos,
+              room_id: teamName,
+              sprite: { color: [100, 200, 100, 255], shape: "Square", scale: 0.6 },
+            },
+          });
+        }
       }
       break;
     }
