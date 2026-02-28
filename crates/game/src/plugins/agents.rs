@@ -1,6 +1,6 @@
 use agent_world_core::{AgentStatus, WorldEvent};
 use bevy::prelude::*;
-use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, MovementTarget, StatusRing};
+use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, EnergyBar, HealthBar, MovementTarget, StatusRing};
 use crate::plugins::events::PendingEvents;
 
 pub struct AgentPlugin;
@@ -82,6 +82,50 @@ fn handle_agent_events(
                     TextColor(Color::WHITE),
                     Transform::from_xyz(0.0, 26.0, 2.0),
                     AgentLabel,
+                    ChildOf(agent_entity),
+                ));
+
+                // Health bar (green) — full width = 30px
+                let bar_bg = meshes.add(Rectangle::new(32.0, 3.0));
+                let bar_bg_mat = materials.add(ColorMaterial::from_color(
+                    Color::srgba(0.2, 0.2, 0.2, 0.5),
+                ));
+                let health_fill = meshes.add(Rectangle::new(30.0, 3.0));
+                let health_mat = materials.add(ColorMaterial::from_color(
+                    Color::srgba(0.2, 0.8, 0.2, 0.8),
+                ));
+
+                commands.spawn((
+                    Mesh2d(bar_bg.clone()),
+                    MeshMaterial2d(bar_bg_mat.clone()),
+                    Transform::from_xyz(0.0, -22.0, 1.5),
+                    ChildOf(agent_entity),
+                ));
+                commands.spawn((
+                    Mesh2d(health_fill),
+                    MeshMaterial2d(health_mat),
+                    Transform::from_xyz(0.0, -22.0, 1.6),
+                    HealthBar,
+                    ChildOf(agent_entity),
+                ));
+
+                // Energy bar (blue) below health
+                let energy_fill = meshes.add(Rectangle::new(30.0, 3.0));
+                let energy_mat = materials.add(ColorMaterial::from_color(
+                    Color::srgba(0.2, 0.4, 0.9, 0.8),
+                ));
+
+                commands.spawn((
+                    Mesh2d(bar_bg),
+                    MeshMaterial2d(bar_bg_mat),
+                    Transform::from_xyz(0.0, -27.0, 1.5),
+                    ChildOf(agent_entity),
+                ));
+                commands.spawn((
+                    Mesh2d(energy_fill),
+                    MeshMaterial2d(energy_mat),
+                    Transform::from_xyz(0.0, -27.0, 1.6),
+                    EnergyBar,
                     ChildOf(agent_entity),
                 ));
             }

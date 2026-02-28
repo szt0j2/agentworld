@@ -41,6 +41,21 @@ pub struct StatusRing {
 #[derive(Component)]
 pub struct GridCell;
 
+/// A portal connecting rooms.
+#[derive(Component)]
+pub struct PortalSprite {
+    pub portal_id: String,
+    pub target_room: String,
+}
+
+/// Health bar background (behind the fill).
+#[derive(Component)]
+pub struct HealthBar;
+
+/// Energy bar background.
+#[derive(Component)]
+pub struct EnergyBar;
+
 /// A thought bubble floating above an agent.
 #[derive(Component)]
 pub struct ThoughtBubble {

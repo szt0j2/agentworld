@@ -30,20 +30,67 @@ impl Plugin for EventBridgePlugin {
     }
 }
 
-/// Emit the initial demo world: one room and three agents with tools and artifacts.
+/// Emit the initial demo world: three rooms, five agents, artifacts.
 fn emit_demo_scenario(
     mut pending: ResMut<PendingEvents>,
     mut visual: ResMut<PendingVisualEvents>,
 ) {
+    use agent_world_core::Portal;
+
+    // Room 1: Workspace (left)
     pending.queue.push(WorldEvent::RoomCreate(Room {
-        id: "main".into(),
-        name: "Main Hall".into(),
-        width: 576.0,
-        height: 576.0,
+        id: "workspace".into(),
+        name: "Workspace".into(),
+        width: 480.0,
+        height: 480.0,
         purpose: "workspace".into(),
-        portals: vec![],
+        portals: vec![Portal {
+            id: "p-ws-review".into(),
+            target_room: "Review".into(),
+            position: Position { x: 220.0, y: 0.0 },
+            target_position: Position { x: -220.0, y: 0.0 },
+        }],
     }));
 
+    // Room 2: Review (center)
+    pending.queue.push(WorldEvent::RoomCreate(Room {
+        id: "review".into(),
+        name: "Review".into(),
+        width: 480.0,
+        height: 480.0,
+        purpose: "review".into(),
+        portals: vec![
+            Portal {
+                id: "p-review-ws".into(),
+                target_room: "Workspace".into(),
+                position: Position { x: -220.0, y: 0.0 },
+                target_position: Position { x: 220.0, y: 0.0 },
+            },
+            Portal {
+                id: "p-review-deploy".into(),
+                target_room: "Deploy".into(),
+                position: Position { x: 220.0, y: 0.0 },
+                target_position: Position { x: -220.0, y: 0.0 },
+            },
+        ],
+    }));
+
+    // Room 3: Deploy (right)
+    pending.queue.push(WorldEvent::RoomCreate(Room {
+        id: "deploy".into(),
+        name: "Deploy".into(),
+        width: 480.0,
+        height: 480.0,
+        purpose: "deploy".into(),
+        portals: vec![Portal {
+            id: "p-deploy-review".into(),
+            target_room: "Review".into(),
+            position: Position { x: -220.0, y: 0.0 },
+            target_position: Position { x: 220.0, y: 0.0 },
+        }],
+    }));
+
+    // 5 Agents across rooms
     pending.queue.push(WorldEvent::AgentSpawn(make_agent(
         "researcher", "Researcher", "researcher",
         [51, 153, 255, 255],
@@ -57,7 +104,17 @@ fn emit_demo_scenario(
     pending.queue.push(WorldEvent::AgentSpawn(make_agent(
         "reviewer", "Reviewer", "reviewer",
         [230, 128, 51, 255],
-        Position { x: 120.0, y: 100.0 },
+        Position { x: 700.0 + 0.0, y: 50.0 },
+    )));
+    pending.queue.push(WorldEvent::AgentSpawn(make_agent(
+        "tester", "Tester", "tester",
+        [255, 102, 178, 255],
+        Position { x: 700.0 - 80.0, y: -80.0 },
+    )));
+    pending.queue.push(WorldEvent::AgentSpawn(make_agent(
+        "deployer", "Deployer", "deployer",
+        [178, 102, 255, 255],
+        Position { x: 1400.0 + 0.0, y: 0.0 },
     )));
 
     // Spawn initial artifacts
@@ -69,7 +126,7 @@ fn emit_demo_scenario(
         owner: Some("researcher".into()),
         quality: 0.5,
         position: Position { x: -80.0, y: 80.0 },
-        room_id: "main".into(),
+        room_id: "workspace".into(),
         sprite: SpriteConfig::default(),
     }));
     visual.queue.push(WorldEvent::ArtifactCreate(Artifact {
@@ -80,12 +137,23 @@ fn emit_demo_scenario(
         owner: Some("coder".into()),
         quality: 0.3,
         position: Position { x: 70.0, y: -60.0 },
-        room_id: "main".into(),
+        room_id: "workspace".into(),
+        sprite: SpriteConfig::default(),
+    }));
+    visual.queue.push(WorldEvent::ArtifactCreate(Artifact {
+        id: "deploy-script".into(),
+        name: "deploy.sh".into(),
+        kind: ArtifactKind::Code,
+        content_ref: String::new(),
+        owner: Some("deployer".into()),
+        quality: 0.7,
+        position: Position { x: 1400.0 + 20.0, y: 0.0 },
+        room_id: "deploy".into(),
         sprite: SpriteConfig::default(),
     }));
 }
 
-/// Demo event cycle — a full "story" of agents working together.
+/// Demo event cycle — a full "story" across three rooms with five agents.
 fn cycle_demo_events(
     time: Res<Time>,
     mut timer: Local<f32>,
@@ -94,226 +162,195 @@ fn cycle_demo_events(
     mut visual: ResMut<PendingVisualEvents>,
 ) {
     *timer += time.delta_secs();
-    if *timer < 2.5 {
+    if *timer < 2.0 {
         return;
     }
     *timer = 0.0;
 
     let t = time.elapsed_secs();
-    let bounds = 200.0;
-    let agents = ["researcher", "coder", "reviewer"];
 
-    // Cycle through a demo story
-    match *step % 12 {
+    // Room offsets for agent positioning
+    let ws = 0.0_f32;      // workspace center x
+    let rv = 700.0_f32;    // review center x
+    let dp = 1400.0_f32;   // deploy center x
+
+    match *step % 16 {
         0 => {
-            // Researcher thinks
-            pending.queue.push(WorldEvent::AgentStatusChange {
-                agent_id: "researcher".into(),
-                status: AgentStatus::Thinking,
-                reason: None,
-            });
-            visual.queue.push(WorldEvent::AgentThink {
-                agent_id: "researcher".into(),
-                thought: "Analyzing requirements...".into(),
-            });
+            // Researcher analyzes requirements in workspace
+            set_status(&mut pending, "researcher", AgentStatus::Thinking);
+            think(&mut visual, "researcher", "Analyzing requirements...");
         }
         1 => {
-            // Researcher uses a tool (web search)
-            pending.queue.push(WorldEvent::AgentStatusChange {
-                agent_id: "researcher".into(),
-                status: AgentStatus::Acting,
-                reason: None,
-            });
-            visual.queue.push(WorldEvent::AgentUseTool {
-                agent_id: "researcher".into(),
-                tool_id: "web-search".into(),
-                target: None,
-            });
+            // Researcher uses web search
+            set_status(&mut pending, "researcher", AgentStatus::Acting);
+            use_tool(&mut visual, "researcher", "web-search");
         }
         2 => {
-            // Tool result + researcher sends findings to coder
-            visual.queue.push(WorldEvent::AgentToolResult {
-                agent_id: "researcher".into(),
-                tool_id: "web-search".into(),
-                success: true,
-            });
-            visual.queue.push(WorldEvent::MessageSend(Message {
-                id: format!("msg-{}", *step),
-                from: "researcher".into(),
-                to: vec!["coder".into()],
-                channel: MessageChannel::Direct,
-                content: "Found the API docs, sending specs".into(),
-                content_preview: "API docs ready".into(),
-                timestamp: t as f64,
-                visual_style: MessageVisualStyle::Projectile,
-            }));
+            // Success! Send findings to coder
+            tool_result(&mut visual, "researcher", "web-search", true);
+            send_msg(&mut visual, "researcher", &["coder"], "API docs ready", t);
+            transfer(&mut visual, "researcher", "coder", "spec-doc");
         }
         3 => {
-            // Coder receives, starts thinking
-            pending.queue.push(WorldEvent::AgentStatusChange {
-                agent_id: "coder".into(),
-                status: AgentStatus::Thinking,
-                reason: None,
-            });
-            visual.queue.push(WorldEvent::AgentThink {
-                agent_id: "coder".into(),
-                thought: "Implementing the handler...".into(),
-            });
-            // Transfer spec doc to coder
-            visual.queue.push(WorldEvent::AgentTransfer {
-                from_id: "researcher".into(),
-                to_id: "coder".into(),
-                artifact_id: "spec-doc".into(),
-            });
+            // Coder implements
+            set_status(&mut pending, "coder", AgentStatus::Thinking);
+            think(&mut visual, "coder", "Implementing the handler...");
+            set_status(&mut pending, "researcher", AgentStatus::Idle);
         }
         4 => {
-            // Coder uses file tool
-            pending.queue.push(WorldEvent::AgentStatusChange {
-                agent_id: "coder".into(),
-                status: AgentStatus::Acting,
-                reason: None,
-            });
-            visual.queue.push(WorldEvent::AgentUseTool {
-                agent_id: "coder".into(),
-                tool_id: "file-write".into(),
-                target: Some("main.rs".into()),
-            });
+            // Coder writes code
+            set_status(&mut pending, "coder", AgentStatus::Acting);
+            use_tool(&mut visual, "coder", "file-write");
         }
         5 => {
-            // Coder finishes, sends code to reviewer
-            visual.queue.push(WorldEvent::AgentToolResult {
-                agent_id: "coder".into(),
-                tool_id: "file-write".into(),
-                success: true,
-            });
-            visual.queue.push(WorldEvent::MessageSend(Message {
-                id: format!("msg-{}", *step),
-                from: "coder".into(),
-                to: vec!["reviewer".into()],
-                channel: MessageChannel::Direct,
-                content: "Code ready for review".into(),
-                content_preview: "PR ready".into(),
-                timestamp: t as f64,
-                visual_style: MessageVisualStyle::Projectile,
-            }));
-            // Transfer code to reviewer
-            visual.queue.push(WorldEvent::AgentTransfer {
-                from_id: "coder".into(),
-                to_id: "reviewer".into(),
-                artifact_id: "main-rs".into(),
-            });
+            // Coder sends PR to reviewer (cross-room message!)
+            tool_result(&mut visual, "coder", "file-write", true);
+            send_msg(&mut visual, "coder", &["reviewer"], "PR ready", t);
+            transfer(&mut visual, "coder", "reviewer", "main-rs");
         }
         6 => {
-            // Reviewer thinks about the code
-            pending.queue.push(WorldEvent::AgentStatusChange {
-                agent_id: "reviewer".into(),
-                status: AgentStatus::Thinking,
-                reason: None,
-            });
-            visual.queue.push(WorldEvent::AgentThink {
-                agent_id: "reviewer".into(),
-                thought: "Checking for edge cases...".into(),
-            });
-            // Researcher goes idle
-            pending.queue.push(WorldEvent::AgentStatusChange {
-                agent_id: "researcher".into(),
-                status: AgentStatus::Idle,
-                reason: None,
-            });
+            // Reviewer examines code, tester starts prep
+            set_status(&mut pending, "reviewer", AgentStatus::Thinking);
+            think(&mut visual, "reviewer", "Checking edge cases...");
+            set_status(&mut pending, "tester", AgentStatus::Thinking);
+            think(&mut visual, "tester", "Preparing test suite...");
+            set_status(&mut pending, "coder", AgentStatus::Idle);
         }
         7 => {
-            // Reviewer uses analysis tool
-            visual.queue.push(WorldEvent::AgentUseTool {
-                agent_id: "reviewer".into(),
-                tool_id: "code-analysis".into(),
-                target: Some("main.rs".into()),
-            });
-            pending.queue.push(WorldEvent::AgentStatusChange {
-                agent_id: "reviewer".into(),
-                status: AgentStatus::Acting,
-                reason: None,
-            });
+            // Reviewer runs analysis, tester runs tests
+            set_status(&mut pending, "reviewer", AgentStatus::Acting);
+            use_tool(&mut visual, "reviewer", "code-analysis");
+            set_status(&mut pending, "tester", AgentStatus::Acting);
+            use_tool(&mut visual, "tester", "test-runner");
         }
         8 => {
-            // Reviewer finds an issue — sends feedback
-            visual.queue.push(WorldEvent::AgentToolResult {
-                agent_id: "reviewer".into(),
-                tool_id: "code-analysis".into(),
-                success: false,
-            });
-            visual.queue.push(WorldEvent::MessageSend(Message {
-                id: format!("msg-{}", *step),
-                from: "reviewer".into(),
-                to: vec!["coder".into()],
-                channel: MessageChannel::Direct,
-                content: "Missing error handling on line 42".into(),
-                content_preview: "Bug found L42".into(),
-                timestamp: t as f64,
-                visual_style: MessageVisualStyle::Projectile,
-            }));
+            // Reviewer finds a bug, tester catches it too
+            tool_result(&mut visual, "reviewer", "code-analysis", false);
+            tool_result(&mut visual, "tester", "test-runner", false);
+            send_msg(&mut visual, "reviewer", &["coder"], "Bug found L42", t);
+            send_msg(&mut visual, "tester", &["coder"], "Test failed!", t);
         }
         9 => {
             // Coder fixes
-            pending.queue.push(WorldEvent::AgentStatusChange {
-                agent_id: "coder".into(),
-                status: AgentStatus::Thinking,
-                reason: None,
-            });
-            visual.queue.push(WorldEvent::AgentThink {
-                agent_id: "coder".into(),
-                thought: "Fixing the error handler...".into(),
-            });
-            pending.queue.push(WorldEvent::AgentStatusChange {
-                agent_id: "reviewer".into(),
-                status: AgentStatus::Waiting,
-                reason: None,
-            });
+            set_status(&mut pending, "coder", AgentStatus::Thinking);
+            think(&mut visual, "coder", "Fixing error handler...");
+            set_status(&mut pending, "reviewer", AgentStatus::Waiting);
+            set_status(&mut pending, "tester", AgentStatus::Waiting);
         }
         10 => {
-            // Broadcast: coder announces fix
-            visual.queue.push(WorldEvent::AgentUseTool {
-                agent_id: "coder".into(),
-                tool_id: "file-write".into(),
-                target: Some("main.rs".into()),
-            });
-            visual.queue.push(WorldEvent::AgentToolResult {
-                agent_id: "coder".into(),
-                tool_id: "file-write".into(),
-                success: true,
-            });
-            visual.queue.push(WorldEvent::MessageSend(Message {
-                id: format!("msg-{}", *step),
-                from: "coder".into(),
-                to: vec!["researcher".into(), "reviewer".into()],
-                channel: MessageChannel::Broadcast,
-                content: "Fix applied and tests pass".into(),
-                content_preview: "Fix done!".into(),
-                timestamp: t as f64,
-                visual_style: MessageVisualStyle::Ripple,
-            }));
+            // Coder applies fix
+            set_status(&mut pending, "coder", AgentStatus::Acting);
+            use_tool(&mut visual, "coder", "file-write");
+            tool_result(&mut visual, "coder", "file-write", true);
         }
         11 => {
-            // Everyone moves to new positions + cycle resets
-            for (i, agent_id) in agents.iter().enumerate() {
+            // Tester re-runs, passes now
+            set_status(&mut pending, "tester", AgentStatus::Acting);
+            use_tool(&mut visual, "tester", "test-runner");
+            tool_result(&mut visual, "tester", "test-runner", true);
+            send_msg(&mut visual, "tester", &["reviewer", "coder"], "All tests pass!", t);
+        }
+        12 => {
+            // Reviewer approves, sends to deployer
+            set_status(&mut pending, "reviewer", AgentStatus::Acting);
+            think(&mut visual, "reviewer", "LGTM, approved!");
+            send_msg(&mut visual, "reviewer", &["deployer"], "Deploy approved", t);
+            transfer(&mut visual, "reviewer", "deployer", "main-rs");
+        }
+        13 => {
+            // Deployer activates
+            set_status(&mut pending, "deployer", AgentStatus::Thinking);
+            think(&mut visual, "deployer", "Preparing deployment...");
+            set_status(&mut pending, "reviewer", AgentStatus::Idle);
+            set_status(&mut pending, "tester", AgentStatus::Idle);
+        }
+        14 => {
+            // Deployer runs deploy
+            set_status(&mut pending, "deployer", AgentStatus::Acting);
+            use_tool(&mut visual, "deployer", "deploy-script");
+            tool_result(&mut visual, "deployer", "deploy-script", true);
+            // Broadcast success to everyone
+            send_msg(&mut visual, "deployer", &["researcher", "coder", "reviewer", "tester"], "Deployed!", t);
+        }
+        15 => {
+            // Everyone shuffles within their rooms
+            let agents_ws = [("researcher", ws), ("coder", ws)];
+            let agents_rv = [("reviewer", rv), ("tester", rv)];
+            let agents_dp = [("deployer", dp)];
+
+            for (i, (agent_id, room_x)) in agents_ws.iter().chain(agents_rv.iter()).chain(agents_dp.iter()).enumerate() {
                 let seed = t + i as f32 * 137.5;
-                let x = (seed.sin() * 1000.0).fract() * bounds * 2.0 - bounds;
-                let y = (seed.cos() * 1000.0).fract() * bounds * 2.0 - bounds;
+                let x = room_x + (seed.sin() * 1000.0).fract() * 300.0 - 150.0;
+                let y = (seed.cos() * 1000.0).fract() * 300.0 - 150.0;
 
                 pending.queue.push(WorldEvent::AgentMove {
                     agent_id: agent_id.to_string(),
                     to: Position { x, y },
                 });
-                pending.queue.push(WorldEvent::AgentStatusChange {
-                    agent_id: agent_id.to_string(),
-                    status: AgentStatus::Idle,
-                    reason: None,
-                });
+            }
+
+            // Reset everyone to idle
+            for agent_id in &["researcher", "coder", "reviewer", "tester", "deployer"] {
+                set_status(&mut pending, agent_id, AgentStatus::Idle);
             }
         }
         _ => {}
     }
 
     *step += 1;
+}
+
+// Helper functions for demo events
+fn set_status(pending: &mut ResMut<PendingEvents>, agent: &str, status: AgentStatus) {
+    pending.queue.push(WorldEvent::AgentStatusChange {
+        agent_id: agent.into(),
+        status,
+        reason: None,
+    });
+}
+
+fn think(visual: &mut ResMut<PendingVisualEvents>, agent: &str, thought: &str) {
+    visual.queue.push(WorldEvent::AgentThink {
+        agent_id: agent.into(),
+        thought: thought.into(),
+    });
+}
+
+fn use_tool(visual: &mut ResMut<PendingVisualEvents>, agent: &str, tool: &str) {
+    visual.queue.push(WorldEvent::AgentUseTool {
+        agent_id: agent.into(),
+        tool_id: tool.into(),
+        target: None,
+    });
+}
+
+fn tool_result(visual: &mut ResMut<PendingVisualEvents>, agent: &str, tool: &str, success: bool) {
+    visual.queue.push(WorldEvent::AgentToolResult {
+        agent_id: agent.into(),
+        tool_id: tool.into(),
+        success,
+    });
+}
+
+fn send_msg(visual: &mut ResMut<PendingVisualEvents>, from: &str, to: &[&str], preview: &str, t: f32) {
+    visual.queue.push(WorldEvent::MessageSend(Message {
+        id: format!("msg-{}-{}", from, t as u32),
+        from: from.into(),
+        to: to.iter().map(|s| s.to_string()).collect(),
+        channel: if to.len() > 1 { MessageChannel::Broadcast } else { MessageChannel::Direct },
+        content: preview.into(),
+        content_preview: preview.into(),
+        timestamp: t as f64,
+        visual_style: MessageVisualStyle::Projectile,
+    }));
+}
+
+fn transfer(visual: &mut ResMut<PendingVisualEvents>, from: &str, to: &str, artifact: &str) {
+    visual.queue.push(WorldEvent::AgentTransfer {
+        from_id: from.into(),
+        to_id: to.into(),
+        artifact_id: artifact.into(),
+    });
 }
 
 /// Log visual events to the HUD event log.
