@@ -18,7 +18,11 @@ struct AgentDef {
     start: Vec2,
 }
 
-fn spawn_demo_agents(mut commands: Commands) {
+fn spawn_demo_agents(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
     let agents = [
         AgentDef {
             id: "researcher",
@@ -43,15 +47,16 @@ fn spawn_demo_agents(mut commands: Commands) {
         },
     ];
 
+    let agent_mesh = meshes.add(Rectangle::new(32.0, 32.0));
+
     for def in &agents {
+        let mat = materials.add(ColorMaterial::from_color(def.color));
+
         // Agent square
         let agent_entity = commands
             .spawn((
-                Sprite {
-                    color: def.color,
-                    custom_size: Some(Vec2::splat(32.0)),
-                    ..default()
-                },
+                Mesh2d(agent_mesh.clone()),
+                MeshMaterial2d(mat),
                 Transform::from_xyz(def.start.x, def.start.y, 1.0),
                 AgentSprite {
                     agent_id: def.id.to_string(),
@@ -73,7 +78,7 @@ fn spawn_demo_agents(mut commands: Commands) {
                 ..default()
             },
             TextColor(Color::WHITE),
-            Transform::from_xyz(def.start.x, def.start.y + 26.0, 2.0),
+            Transform::from_xyz(0.0, 26.0, 2.0),
             AgentLabel,
             ChildOf(agent_entity),
         ));
@@ -116,7 +121,6 @@ fn assign_new_targets(
     *timer = 0.0;
 
     let bounds = 200.0;
-    // Simple pseudo-random based on time
     let t = time.elapsed_secs();
 
     for (i, (_transform, mut target)) in query.iter_mut().enumerate() {

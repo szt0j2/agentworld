@@ -7,4 +7,16 @@ description = "Bevy-based game visualization for AgentWorld"
 
 [dependencies]
 agent-world-core = { path = "../core" }
-bevy = { version = "0.18", default-features = false, features = ["bevy_render", "bevy_winit", "bevy_sprite", "bevy_text", "bevy_ui", "png", "webgl2", "x11"] }
+bevy = { version = "0.18", default-features = false, features = [
+    "bevy_core_pipeline",
+    "bevy_render",
+    "bevy_winit",
+    "bevy_sprite",
+    "bevy_sprite_render",
+    "bevy_text",
+    "bevy_ui",
+    "default_font",
+    "png",
+    "webgl2",
+    "x11",
+] }
