@@ -25,6 +25,7 @@ fn handle_visual_events(
     mut pending: ResMut<PendingVisualEvents>,
     agents: Query<(&AgentSprite, &Transform)>,
     mut artifact_query: Query<(&mut ArtifactSprite, &mut MovementTarget, &mut Transform), Without<AgentSprite>>,
+    existing_bubbles: Query<(Entity, &ThoughtBubble)>,
 ) {
     let events: Vec<WorldEvent> = pending.queue.drain(..).collect();
 
@@ -33,16 +34,20 @@ fn handle_visual_events(
             WorldEvent::AgentThink { ref agent_id, ref thought } => {
                 // Find the agent and spawn a thought bubble above them
                 if let Some((_, agent_tf)) = agents.iter().find(|(s, _)| s.agent_id == *agent_id) {
+                    // Despawn existing bubbles for this agent (debounce)
+                    for (bubble_entity, bubble) in &existing_bubbles {
+                        if bubble.agent_id == *agent_id {
+                            commands.entity(bubble_entity).despawn();
+                        }
+                    }
+
                     let pos = agent_tf.translation;
-                    // Truncate thought for display
-                    let display = if thought.len() > 30 {
-                        format!("{}...", &thought[..27])
-                    } else {
-                        thought.clone()
-                    };
+
+                    // Clean up tool name display
+                    let display = format_thought(thought);
 
                     // Background pill
-                    let pill_width = display.len() as f32 * 6.5 + 16.0;
+                    let pill_width = (display.len() as f32 * 6.5 + 16.0).min(280.0);
                     let pill_mesh = meshes.add(Rectangle::new(pill_width, 20.0));
                     let pill_mat = materials.add(ColorMaterial::from_color(
                         Color::srgba(0.1, 0.1, 0.2, 0.8),
@@ -53,6 +58,7 @@ fn handle_visual_events(
                         MeshMaterial2d(pill_mat),
                         Transform::from_xyz(pos.x, pos.y + 40.0, 4.5),
                         ThoughtBubble {
+                            agent_id: agent_id.clone(),
                             lifetime: 0.0,
                             max_lifetime: 3.0,
                         },
@@ -330,6 +336,22 @@ fn animate_artifact_glow(
                 base.alpha,
             );
         }
+    }
+}
+
+/// Format a thought string for display — clean up tool names and truncate.
+fn format_thought(thought: &str) -> String {
+    // Strip common prefixes and clean up tool names
+    let cleaned = thought
+        .replace("mcp__playwright__", "")
+        .replace("mcp__opnsense__", "opn:")
+        .replace("mcp__local__", "local:")
+        .replace("mcp__winrm__", "win:");
+
+    if cleaned.len() > 35 {
+        format!("{}...", &cleaned[..32])
+    } else {
+        cleaned
     }
 }
 

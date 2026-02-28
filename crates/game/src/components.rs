@@ -59,6 +59,7 @@ pub struct EnergyBar;
 /// A thought bubble floating above an agent.
 #[derive(Component)]
 pub struct ThoughtBubble {
+    pub agent_id: String,
     pub lifetime: f32,
     pub max_lifetime: f32,
 }

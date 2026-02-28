@@ -365,6 +365,19 @@ fn transfer(visual: &mut ResMut<PendingVisualEvents>, from: &str, to: &str, arti
 }
 
 /// Log visual events to the HUD event log.
+/// Shorten agent IDs for log display (e.g., "default/lead" → "lead")
+fn short_id(id: &str) -> &str {
+    id.rsplit('/').next().unwrap_or(id)
+}
+
+/// Clean up tool names for display
+fn clean_tool(name: &str) -> String {
+    name.replace("mcp__playwright__", "pw:")
+        .replace("mcp__opnsense__", "opn:")
+        .replace("mcp__local__", "local:")
+        .replace("mcp__winrm__", "win:")
+}
+
 fn log_visual_events(
     pending: Res<PendingEvents>,
     visual: Res<PendingVisualEvents>,
@@ -378,13 +391,10 @@ fn log_visual_events(
                     AgentStatus::Thinking => "thinking",
                     AgentStatus::Acting => "acting",
                     AgentStatus::Waiting => "waiting",
-                    AgentStatus::Error => "error",
+                    AgentStatus::Error => "ERROR",
                     AgentStatus::Paused => "paused",
                 };
-                log.push(format!("{agent_id} → {status_str}"));
-            }
-            WorldEvent::AgentMove { agent_id, .. } => {
-                log.push(format!("{agent_id} moving"));
+                log.push(format!("{} → {status_str}", short_id(agent_id)));
             }
             _ => {}
         }
@@ -392,24 +402,23 @@ fn log_visual_events(
     for event in &visual.queue {
         match event {
             WorldEvent::AgentThink { agent_id, thought } => {
-                let short = if thought.len() > 25 { &thought[..25] } else { thought };
-                log.push(format!("{agent_id}: \"{short}\""));
+                let cleaned = clean_tool(thought);
+                let short = if cleaned.len() > 30 { &cleaned[..30] } else { &cleaned };
+                log.push(format!("{}: {short}", short_id(agent_id)));
             }
             WorldEvent::AgentUseTool { agent_id, tool_id, .. } => {
-                log.push(format!("{agent_id} ⚡ {tool_id}"));
+                log.push(format!("{} > {}", short_id(agent_id), clean_tool(tool_id)));
             }
             WorldEvent::AgentToolResult { agent_id, success, .. } => {
-                let icon = if *success { "✓" } else { "✗" };
-                log.push(format!("{agent_id} {icon} tool result"));
+                let icon = if *success { "ok" } else { "FAIL" };
+                log.push(format!("{} < {icon}", short_id(agent_id)));
             }
             WorldEvent::MessageSend(msg) => {
-                log.push(format!("{} → {}: {}", msg.from, msg.to.join(","), msg.content_preview));
+                let to = msg.to.iter().map(|t| short_id(t)).collect::<Vec<_>>().join(",");
+                log.push(format!("{} msg> {to}", short_id(&msg.from)));
             }
             WorldEvent::ArtifactCreate(art) => {
-                log.push(format!("+ artifact: {}", art.name));
-            }
-            WorldEvent::AgentTransfer { from_id, to_id, artifact_id, .. } => {
-                log.push(format!("{from_id} → {to_id}: {artifact_id}"));
+                log.push(format!("+ {}", art.name));
             }
             _ => {}
         }

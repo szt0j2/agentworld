@@ -2,6 +2,8 @@ use bevy::{
     diagnostic::{DiagnosticsStore, FrameTimeDiagnosticsPlugin},
     prelude::*,
 };
+use crate::components::AgentSprite;
+use crate::plugins::adapter::ConnectionStatus;
 
 pub struct DebugPlugin;
 
@@ -20,14 +22,14 @@ fn spawn_fps_counter(mut commands: Commands) {
     commands.spawn((
         Text::new("FPS: --"),
         TextFont {
-            font_size: 16.0,
+            font_size: 12.0,
             ..default()
         },
-        TextColor(Color::srgb(0.7, 0.7, 0.7)),
+        TextColor(Color::srgba(0.6, 0.6, 0.6, 0.7)),
         Node {
             position_type: PositionType::Absolute,
-            top: Val::Px(8.0),
-            left: Val::Px(8.0),
+            bottom: Val::Px(4.0),
+            left: Val::Px(190.0),
             ..default()
         },
         FpsText,
@@ -37,13 +39,24 @@ fn spawn_fps_counter(mut commands: Commands) {
 fn update_fps_counter(
     diagnostics: Res<DiagnosticsStore>,
     mut query: Query<&mut Text, With<FpsText>>,
+    agents: Query<&AgentSprite>,
+    status: Res<ConnectionStatus>,
 ) {
-    if let Some(fps) = diagnostics
+    let fps = diagnostics
         .get(&bevy::diagnostic::FrameTimeDiagnosticsPlugin::FPS)
         .and_then(|d| d.smoothed())
-    {
-        for mut text in &mut query {
-            **text = format!("FPS: {fps:.0}");
-        }
+        .unwrap_or(0.0);
+
+    let agent_count = agents.iter().count();
+
+    let conn = match *status {
+        ConnectionStatus::Disconnected => "demo",
+        ConnectionStatus::Connecting => "connecting...",
+        ConnectionStatus::Connected => "live",
+        ConnectionStatus::Reconnecting => "reconnecting...",
+    };
+
+    for mut text in &mut query {
+        **text = format!("FPS:{fps:.0} | {agent_count} agents | {conn}");
     }
 }
