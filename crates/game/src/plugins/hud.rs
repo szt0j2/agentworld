@@ -4,16 +4,12 @@ use crate::components::AgentSprite;
 use crate::plugins::adapter::ConnectionStatus;
 use crate::plugins::camera::CameraFollow;
 
-/// Number of activity bars in the timeline.
-const TIMELINE_BARS: usize = 40;
-
 pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EventLog>()
             .init_resource::<InspectorState>()
-            .init_resource::<ActivityTimeline>()
             .add_systems(Startup, spawn_hud)
             .add_systems(Update, (
                 update_agent_roster,
@@ -21,7 +17,6 @@ impl Plugin for HudPlugin {
                 update_event_log_display,
                 update_inspector_panel,
                 update_connection_status,
-                update_activity_timeline,
                 toggle_help_overlay,
             ));
     }
@@ -74,53 +69,6 @@ struct InspectorText;
 #[derive(Component)]
 struct ConnectionStatusDot;
 
-/// Tracks activity over time bins for the timeline bar.
-#[derive(Resource)]
-pub struct ActivityTimeline {
-    /// Activity count per bin (ring buffer).
-    bins: [u32; TIMELINE_BARS],
-    /// Current bin index.
-    current_bin: usize,
-    /// Timer for advancing bins.
-    timer: f32,
-    /// Seconds per bin.
-    bin_duration: f32,
-}
-
-impl Default for ActivityTimeline {
-    fn default() -> Self {
-        Self {
-            bins: [0; TIMELINE_BARS],
-            current_bin: 0,
-            timer: 0.0,
-            bin_duration: 2.0, // each bar = 2 seconds of activity
-        }
-    }
-}
-
-impl ActivityTimeline {
-    pub fn record_event(&mut self) {
-        self.bins[self.current_bin] = self.bins[self.current_bin].saturating_add(1);
-    }
-
-    fn advance(&mut self, dt: f32) {
-        self.timer += dt;
-        while self.timer >= self.bin_duration {
-            self.timer -= self.bin_duration;
-            self.current_bin = (self.current_bin + 1) % TIMELINE_BARS;
-            self.bins[self.current_bin] = 0;
-        }
-    }
-}
-
-#[derive(Component)]
-struct TimelinePanel;
-
-#[derive(Component)]
-struct TimelineBar {
-    index: usize,
-}
-
 #[derive(Component)]
 struct HelpOverlay;
 
@@ -135,8 +83,6 @@ fn spawn_hud(mut commands: Commands) {
             align_items: AlignItems::Stretch,
             ..default()
         },
-        // Don't block picking/interaction with game world
-
         HudRoot,
     )).with_children(|parent| {
         // Left sidebar — Agent Roster
@@ -149,7 +95,6 @@ fn spawn_hud(mut commands: Commands) {
                 ..default()
             },
             BackgroundColor(Color::srgba(0.05, 0.05, 0.12, 0.85)),
-    
             AgentRosterPanel,
         )).with_children(|panel| {
             // Title row with connection status dot
@@ -183,7 +128,7 @@ fn spawn_hud(mut commands: Commands) {
             });
         });
 
-        // Center area (game canvas + inspector + timeline at bottom)
+        // Center area (game canvas + inspector at bottom)
         parent.spawn((
             Node {
                 flex_grow: 1.0,
@@ -201,7 +146,7 @@ fn spawn_hud(mut commands: Commands) {
                     max_height: Val::Px(200.0),
                     flex_direction: FlexDirection::Column,
                     padding: UiRect::all(Val::Px(10.0)),
-                    margin: UiRect::bottom(Val::Px(4.0)),
+                    margin: UiRect::bottom(Val::Px(10.0)),
                     display: Display::None,
                     ..default()
                 },
@@ -218,36 +163,6 @@ fn spawn_hud(mut commands: Commands) {
                     InspectorText,
                 ));
             });
-
-            // Activity timeline — heartbeat bar at bottom
-            center.spawn((
-                Node {
-                    width: Val::Percent(80.0),
-                    max_width: Val::Px(600.0),
-                    height: Val::Px(24.0),
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::End,
-                    justify_content: JustifyContent::Center,
-                    column_gap: Val::Px(1.0),
-                    padding: UiRect::horizontal(Val::Px(4.0)),
-                    margin: UiRect::bottom(Val::Px(4.0)),
-                    ..default()
-                },
-                BackgroundColor(Color::srgba(0.04, 0.04, 0.10, 0.7)),
-                TimelinePanel,
-            )).with_children(|panel| {
-                for i in 0..TIMELINE_BARS {
-                    panel.spawn((
-                        Node {
-                            width: Val::Px(10.0),
-                            height: Val::Px(2.0),
-                            ..default()
-                        },
-                        BackgroundColor(Color::srgba(0.3, 0.4, 0.7, 0.3)),
-                        TimelineBar { index: i },
-                    ));
-                }
-            });
         });
 
         // Right side — Event Log
@@ -260,7 +175,6 @@ fn spawn_hud(mut commands: Commands) {
                 ..default()
             },
             BackgroundColor(Color::srgba(0.05, 0.05, 0.12, 0.85)),
-    
             EventLogPanel,
         )).with_children(|panel| {
             // Title
@@ -314,8 +228,7 @@ Scroll Zoom in/out\n\
 MMB    Pan camera\n\
 H      Toggle help\n\
 \n\
-Click agent in roster\n\
-to inspect details";
+Click roster to inspect";
 
         panel.spawn((
             Text::new(help_text),
@@ -338,13 +251,9 @@ fn update_agent_roster(
 ) {
     let Ok(panel_entity) = roster_panel.single() else { return };
 
-    // Check which agents exist
     let agent_ids: Vec<String> = agents.iter().map(|a| a.agent_id.clone()).collect();
-
-    // Check which entries already exist
     let existing_ids: Vec<String> = existing_entries.iter().map(|(_, e)| e.agent_id.clone()).collect();
 
-    // Add missing entries
     for agent in agents.iter() {
         if !existing_ids.contains(&agent.agent_id) {
             let status_color = status_to_color(agent.status);
@@ -395,7 +304,6 @@ fn update_agent_roster(
         }
     }
 
-    // Update existing entries (status color changes)
     for (entry_entity, roster_entry) in &existing_entries {
         if let Some(agent) = agents.iter().find(|a| a.agent_id == roster_entry.agent_id) {
             let is_followed = follow.target.as_ref() == Some(&agent.agent_id);
@@ -408,14 +316,13 @@ fn update_agent_roster(
             );
         }
 
-        // Remove entries for despawned agents
         if !agent_ids.contains(&roster_entry.agent_id) {
             commands.entity(entry_entity).despawn();
         }
     }
 }
 
-/// Handle clicks on agent roster entries to follow and inspect that agent.
+/// Handle clicks on agent roster entries to follow and inspect.
 fn handle_roster_clicks(
     entries: Query<(&Interaction, &AgentRosterEntry), Changed<Interaction>>,
     mut follow: ResMut<CameraFollow>,
@@ -517,36 +424,6 @@ fn update_inspector_panel(
                 **text = format!("Agent {} not found", agent_id);
             }
         }
-    }
-}
-
-/// Update the activity timeline bars.
-fn update_activity_timeline(
-    time: Res<Time>,
-    mut timeline: ResMut<ActivityTimeline>,
-    mut bars: Query<(&mut Node, &mut BackgroundColor, &TimelineBar)>,
-) {
-    timeline.advance(time.delta_secs());
-
-    // Find max activity for scaling
-    let max_activity = timeline.bins.iter().copied().max().unwrap_or(1).max(1);
-
-    for (mut node, mut bg, bar) in &mut bars {
-        // Map bar index to ring buffer position (oldest → newest left to right)
-        let bin_idx = (timeline.current_bin + 1 + bar.index) % TIMELINE_BARS;
-        let activity = timeline.bins[bin_idx];
-        let normalized = activity as f32 / max_activity as f32;
-
-        // Height: min 2px, max 20px
-        let height = 2.0 + normalized * 18.0;
-        node.height = Val::Px(height);
-
-        // Color: dim blue → bright cyan based on activity
-        let is_current = bin_idx == timeline.current_bin;
-        let alpha = if is_current { 0.9 } else { 0.3 + normalized * 0.5 };
-        let green = 0.4 + normalized * 0.5;
-        let blue = 0.7 + normalized * 0.3;
-        *bg = BackgroundColor(Color::srgba(0.2, green, blue, alpha));
     }
 }
 

@@ -180,128 +180,158 @@ fn cycle_demo_events(
 
     let t = time.elapsed_secs();
 
-    // Room offsets for agent positioning
-    let ws = 0.0_f32;      // workspace center x
-    let rv = 700.0_f32;    // review center x
-    let dp = 1400.0_f32;   // deploy center x
+    // Fixed positions — agents have "desks" in their rooms, move toward
+    // collaborators when interacting, then return to their desk.
+    // Workspace room at x=0, Review room at x=700, Deploy room at x=1400
+
+    // Home positions (where agents sit when idle)
+    let home = |agent: &str| -> Position {
+        match agent {
+            "researcher" => Position { x: -100.0, y: 80.0 },
+            "coder"      => Position { x: 50.0, y: -60.0 },
+            "reviewer"   => Position { x: 640.0, y: 50.0 },
+            "tester"     => Position { x: 760.0, y: -80.0 },
+            "deployer"   => Position { x: 1400.0, y: 0.0 },
+            _ => Position { x: 0.0, y: 0.0 },
+        }
+    };
+
+    // Move toward another agent (approach their position)
+    let approach = |pending: &mut ResMut<PendingEvents>, who: &str, toward: &str| {
+        let target = home(toward);
+        let origin = home(who);
+        // Move 70% of the way toward the target
+        let x = origin.x + (target.x - origin.x) * 0.7;
+        let y = origin.y + (target.y - origin.y) * 0.7;
+        pending.queue.push(WorldEvent::AgentMove {
+            agent_id: who.into(),
+            to: Position { x, y },
+        });
+    };
+
+    let go_home = |pending: &mut ResMut<PendingEvents>, who: &str| {
+        let pos = home(who);
+        pending.queue.push(WorldEvent::AgentMove {
+            agent_id: who.into(),
+            to: pos,
+        });
+    };
 
     match *step % 16 {
         0 => {
-            // Researcher analyzes requirements in workspace
+            // Researcher starts analyzing at their desk
             set_status(&mut pending, "researcher", AgentStatus::Thinking);
             think(&mut visual, "researcher", "Analyzing requirements...");
         }
         1 => {
-            // Researcher uses web search
+            // Researcher uses web search (stays at desk)
             set_status(&mut pending, "researcher", AgentStatus::Acting);
             use_tool(&mut visual, "researcher", "web-search");
         }
         2 => {
-            // Success! Send findings to coder
+            // Researcher moves toward Coder to hand off findings
+            approach(&mut pending, "researcher", "coder");
             tool_result(&mut visual, "researcher", "web-search", true);
             send_msg(&mut visual, "researcher", &["coder"], "API docs ready", t);
             transfer(&mut visual, "researcher", "coder", "spec-doc");
         }
         3 => {
-            // Coder implements
+            // Researcher returns home, Coder starts working
+            go_home(&mut pending, "researcher");
+            set_status(&mut pending, "researcher", AgentStatus::Idle);
             set_status(&mut pending, "coder", AgentStatus::Thinking);
             think(&mut visual, "coder", "Implementing the handler...");
-            set_status(&mut pending, "researcher", AgentStatus::Idle);
         }
         4 => {
-            // Coder writes code
+            // Coder writes code at their desk
             set_status(&mut pending, "coder", AgentStatus::Acting);
             use_tool(&mut visual, "coder", "file-write");
         }
         5 => {
-            // Coder sends PR to reviewer (cross-room message!)
+            // Coder moves toward Reviewer to send PR
+            approach(&mut pending, "coder", "reviewer");
             tool_result(&mut visual, "coder", "file-write", true);
             send_msg(&mut visual, "coder", &["reviewer"], "PR ready", t);
             transfer(&mut visual, "coder", "reviewer", "main-rs");
         }
         6 => {
-            // Reviewer examines code, tester starts prep
+            // Coder returns home, Reviewer + Tester start examining
+            go_home(&mut pending, "coder");
+            set_status(&mut pending, "coder", AgentStatus::Idle);
             set_status(&mut pending, "reviewer", AgentStatus::Thinking);
             think(&mut visual, "reviewer", "Checking edge cases...");
+            // Tester moves closer to Reviewer to coordinate
+            approach(&mut pending, "tester", "reviewer");
             set_status(&mut pending, "tester", AgentStatus::Thinking);
             think(&mut visual, "tester", "Preparing test suite...");
-            set_status(&mut pending, "coder", AgentStatus::Idle);
         }
         7 => {
-            // Reviewer runs analysis, tester runs tests
+            // Reviewer + Tester both working (at their positions)
             set_status(&mut pending, "reviewer", AgentStatus::Acting);
             use_tool(&mut visual, "reviewer", "code-analysis");
             set_status(&mut pending, "tester", AgentStatus::Acting);
             use_tool(&mut visual, "tester", "test-runner");
         }
         8 => {
-            // Reviewer finds a bug, tester catches it too
+            // Bug found! Reviewer + Tester move toward Coder to report
+            approach(&mut pending, "reviewer", "coder");
+            approach(&mut pending, "tester", "coder");
             tool_result(&mut visual, "reviewer", "code-analysis", false);
             tool_result(&mut visual, "tester", "test-runner", false);
             send_msg(&mut visual, "reviewer", &["coder"], "Bug found L42", t);
             send_msg(&mut visual, "tester", &["coder"], "Test failed!", t);
         }
         9 => {
-            // Coder fixes
-            set_status(&mut pending, "coder", AgentStatus::Thinking);
-            think(&mut visual, "coder", "Fixing error handler...");
+            // Reviewer + Tester return to their area and wait
+            go_home(&mut pending, "reviewer");
+            go_home(&mut pending, "tester");
             set_status(&mut pending, "reviewer", AgentStatus::Waiting);
             set_status(&mut pending, "tester", AgentStatus::Waiting);
+            // Coder starts fixing
+            set_status(&mut pending, "coder", AgentStatus::Thinking);
+            think(&mut visual, "coder", "Fixing error handler...");
         }
         10 => {
-            // Coder applies fix
+            // Coder applies fix at their desk
             set_status(&mut pending, "coder", AgentStatus::Acting);
             use_tool(&mut visual, "coder", "file-write");
             tool_result(&mut visual, "coder", "file-write", true);
         }
         11 => {
-            // Tester re-runs, passes now
+            // Tester re-runs and announces to everyone
             set_status(&mut pending, "tester", AgentStatus::Acting);
             use_tool(&mut visual, "tester", "test-runner");
             tool_result(&mut visual, "tester", "test-runner", true);
             send_msg(&mut visual, "tester", &["reviewer", "coder"], "All tests pass!", t);
         }
         12 => {
-            // Reviewer approves, sends to deployer
+            // Reviewer approves, moves toward Deployer to hand off
+            approach(&mut pending, "reviewer", "deployer");
             set_status(&mut pending, "reviewer", AgentStatus::Acting);
             think(&mut visual, "reviewer", "LGTM, approved!");
             send_msg(&mut visual, "reviewer", &["deployer"], "Deploy approved", t);
             transfer(&mut visual, "reviewer", "deployer", "main-rs");
         }
         13 => {
-            // Deployer activates
+            // Reviewer + Tester return home and idle, Deployer starts
+            go_home(&mut pending, "reviewer");
+            set_status(&mut pending, "reviewer", AgentStatus::Idle);
+            go_home(&mut pending, "tester");
+            set_status(&mut pending, "tester", AgentStatus::Idle);
             set_status(&mut pending, "deployer", AgentStatus::Thinking);
             think(&mut visual, "deployer", "Preparing deployment...");
-            set_status(&mut pending, "reviewer", AgentStatus::Idle);
-            set_status(&mut pending, "tester", AgentStatus::Idle);
         }
         14 => {
-            // Deployer runs deploy
+            // Deployer runs deploy and broadcasts success
             set_status(&mut pending, "deployer", AgentStatus::Acting);
             use_tool(&mut visual, "deployer", "deploy-script");
             tool_result(&mut visual, "deployer", "deploy-script", true);
-            // Broadcast success to everyone
             send_msg(&mut visual, "deployer", &["researcher", "coder", "reviewer", "tester"], "Deployed!", t);
         }
         15 => {
-            // Everyone shuffles within their rooms
-            let agents_ws = [("researcher", ws), ("coder", ws)];
-            let agents_rv = [("reviewer", rv), ("tester", rv)];
-            let agents_dp = [("deployer", dp)];
-
-            for (i, (agent_id, room_x)) in agents_ws.iter().chain(agents_rv.iter()).chain(agents_dp.iter()).enumerate() {
-                let seed = t + i as f32 * 137.5;
-                let x = room_x + (seed.sin() * 1000.0).fract() * 300.0 - 150.0;
-                let y = (seed.cos() * 1000.0).fract() * 300.0 - 150.0;
-
-                pending.queue.push(WorldEvent::AgentMove {
-                    agent_id: agent_id.to_string(),
-                    to: Position { x, y },
-                });
-            }
-
-            // Reset everyone to idle
+            // Everyone returns home and idles, cycle complete
             for agent_id in &["researcher", "coder", "reviewer", "tester", "deployer"] {
+                go_home(&mut pending, agent_id);
                 set_status(&mut pending, agent_id, AgentStatus::Idle);
             }
         }
@@ -382,7 +412,6 @@ fn log_visual_events(
     pending: Res<PendingEvents>,
     visual: Res<PendingVisualEvents>,
     mut log: ResMut<EventLog>,
-    mut timeline: ResMut<crate::plugins::hud::ActivityTimeline>,
 ) {
     for event in &pending.queue {
         match event {
@@ -410,12 +439,6 @@ fn log_visual_events(
             _ => {}
         }
     }
-    // Record activity on the timeline
-    let event_count = pending.queue.len() + visual.queue.len();
-    for _ in 0..event_count {
-        timeline.record_event();
-    }
-
     for event in &visual.queue {
         match event {
             WorldEvent::AgentThink { agent_id, thought } => {

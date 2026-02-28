@@ -15,6 +15,7 @@ pub struct AgentSprite {
 
 /// Marks an entity as an artifact sprite.
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct ArtifactSprite {
     pub artifact_id: String,
     pub name: String,
@@ -46,6 +47,7 @@ pub struct GridCell;
 
 /// A portal connecting rooms.
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct PortalSprite {
     pub portal_id: String,
     pub target_room: String,
@@ -69,6 +71,7 @@ pub struct ThoughtBubble {
 
 /// A message projectile traveling between agents.
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct MessageProjectile {
     pub from_pos: Vec2,
     pub to_agent_id: String,
@@ -79,6 +82,7 @@ pub struct MessageProjectile {
 
 /// Tool use effect flash on an agent.
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct ToolEffect {
     pub lifetime: f32,
     pub max_lifetime: f32,
@@ -94,6 +98,7 @@ pub struct TrailDot {
 
 /// A fading connection line between two agents (shown after messages).
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct ConnectionLine {
     pub from_agent: String,
     pub to_agent: String,
