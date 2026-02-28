@@ -385,6 +385,12 @@ fn log_visual_events(
 ) {
     for event in &pending.queue {
         match event {
+            WorldEvent::AgentSpawn(agent) => {
+                log.push(format!("+ {} joined", short_id(&agent.id)));
+            }
+            WorldEvent::AgentDespawn { agent_id } => {
+                log.push(format!("- {} left", short_id(agent_id)));
+            }
             WorldEvent::AgentStatusChange { agent_id, status, .. } => {
                 let status_str = match status {
                     AgentStatus::Idle => "idle",
@@ -395,6 +401,10 @@ fn log_visual_events(
                     AgentStatus::Paused => "paused",
                 };
                 log.push(format!("{} → {status_str}", short_id(agent_id)));
+            }
+            WorldEvent::AgentError { agent_id, error } => {
+                let short_err = if error.len() > 25 { &error[..25] } else { error };
+                log.push(format!("! {} ERR: {short_err}", short_id(agent_id)));
             }
             _ => {}
         }

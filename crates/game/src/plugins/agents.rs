@@ -5,14 +5,21 @@ use crate::plugins::events::PendingEvents;
 
 pub struct AgentPlugin;
 
+/// Resource mapping agent_id → Entity for fast lookups.
+#[derive(Resource, Default)]
+pub struct AgentIndex {
+    pub map: std::collections::HashMap<String, Entity>,
+}
+
 impl Plugin for AgentPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, (
-            handle_agent_events,
-            move_agents,
-            artifacts_follow_owners,
-            update_status_visuals,
-        ).chain());
+        app.init_resource::<AgentIndex>()
+            .add_systems(Update, (
+                handle_agent_events,
+                move_agents,
+                artifacts_follow_owners,
+                update_status_visuals,
+            ).chain());
     }
 }
 
@@ -22,13 +29,19 @@ fn handle_agent_events(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut pending: ResMut<PendingEvents>,
-    mut agents: Query<(&mut AgentSprite, &mut MovementTarget)>,
+    mut agents: Query<(Entity, &mut AgentSprite, &mut MovementTarget)>,
+    mut index: ResMut<AgentIndex>,
 ) {
     let events: Vec<WorldEvent> = pending.queue.drain(..).collect();
 
     for event in events {
         match event {
             WorldEvent::AgentSpawn(agent) => {
+                // Skip if already spawned (idempotent)
+                if index.map.contains_key(&agent.id) {
+                    continue;
+                }
+
                 let color = Color::srgba_u8(
                     agent.sprite.color[0],
                     agent.sprite.color[1],
@@ -55,6 +68,9 @@ fn handle_agent_events(
                             name: agent.name.clone(),
                             role: agent.role.clone(),
                             status: agent.status,
+                            last_tool: None,
+                            last_thought: None,
+                            tool_count: 0,
                         },
                         MovementTarget {
                             target: Vec2::new(agent.position.x, agent.position.y),
@@ -62,6 +78,8 @@ fn handle_agent_events(
                         },
                     ))
                     .id();
+
+                index.map.insert(agent.id.clone(), agent_entity);
 
                 // Status ring as child
                 commands.spawn((
@@ -151,25 +169,32 @@ fn handle_agent_events(
                 ));
             }
             WorldEvent::AgentMove { ref agent_id, to } => {
-                for (sprite, mut target) in &mut agents {
+                for (_, sprite, mut target) in &mut agents {
                     if sprite.agent_id == *agent_id {
                         target.target = Vec2::new(to.x, to.y);
                     }
                 }
             }
             WorldEvent::AgentDespawn { ref agent_id } => {
-                // Find and despawn the agent entity
-                for (sprite, _) in agents.iter() {
-                    if sprite.agent_id == *agent_id {
-                        // We can't easily get the entity from the query with the current setup,
-                        // so just set status to Paused (visually fades)
+                if let Some(entity) = index.map.remove(agent_id) {
+                    // Spawn a fade-out effect at the agent's position
+                    if let Ok((_, sprite, _)) = agents.get(entity) {
+                        let _ = sprite; // just need entity
                     }
+                    commands.entity(entity).despawn();
                 }
             }
             WorldEvent::AgentStatusChange { ref agent_id, status, .. } => {
-                for (mut sprite, _) in &mut agents {
+                for (_, mut sprite, _) in &mut agents {
                     if sprite.agent_id == *agent_id {
                         sprite.status = status;
+                    }
+                }
+            }
+            WorldEvent::AgentError { ref agent_id, .. } => {
+                for (_, mut sprite, _) in &mut agents {
+                    if sprite.agent_id == *agent_id {
+                        sprite.status = AgentStatus::Error;
                     }
                 }
             }

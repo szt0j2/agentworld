@@ -375,10 +375,21 @@ fn update_inspector_panel(
 
             if let Some(agent) = agents.iter().find(|a| &a.agent_id == agent_id) {
                 let status_str = format!("{:?}", agent.status);
-                **text = format!(
-                    "[ {} ]\nRole: {}\nStatus: {}\nID: {}",
-                    agent.name, agent.role, status_str, agent.agent_id,
+                let tool_str = agent.last_tool.as_deref().unwrap_or("none");
+                let thought_str = agent.last_thought.as_deref().unwrap_or("");
+                let thought_display = if thought_str.len() > 40 {
+                    format!("{}...", &thought_str[..37])
+                } else {
+                    thought_str.to_string()
+                };
+                let mut info = format!(
+                    "[ {} ]\nRole: {}  |  Status: {}\nTools used: {}  |  Last: {}",
+                    agent.name, agent.role, status_str, agent.tool_count, tool_str,
                 );
+                if !thought_display.is_empty() {
+                    info.push_str(&format!("\nThinking: {thought_display}"));
+                }
+                **text = info;
             } else {
                 **text = format!("Agent {} not found", agent_id);
             }

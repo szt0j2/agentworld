@@ -13,6 +13,7 @@ impl Plugin for VisualsPlugin {
             animate_message_projectiles,
             animate_tool_effects,
             animate_artifact_glow,
+            animate_connection_lines,
         ));
     }
 }
@@ -23,7 +24,7 @@ fn handle_visual_events(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut pending: ResMut<PendingVisualEvents>,
-    agents: Query<(&AgentSprite, &Transform)>,
+    mut agents: Query<(&mut AgentSprite, &Transform)>,
     mut artifact_query: Query<(&mut ArtifactSprite, &mut MovementTarget, &mut Transform), Without<AgentSprite>>,
     existing_bubbles: Query<(Entity, &ThoughtBubble)>,
 ) {
@@ -32,6 +33,12 @@ fn handle_visual_events(
     for event in events {
         match event {
             WorldEvent::AgentThink { ref agent_id, ref thought } => {
+                // Track on agent sprite
+                for (mut sprite, _) in &mut agents {
+                    if sprite.agent_id == *agent_id {
+                        sprite.last_thought = Some(thought.clone());
+                    }
+                }
                 // Find the agent and spawn a thought bubble above them
                 if let Some((_, agent_tf)) = agents.iter().find(|(s, _)| s.agent_id == *agent_id) {
                     // Despawn existing bubbles for this agent (debounce)
@@ -106,10 +113,44 @@ fn handle_visual_events(
                                 content_preview: preview.clone(),
                             },
                         ));
+
+                        // Connection line between sender and receiver
+                        if let Some((_, to_tf)) = agents.iter().find(|(s, _)| s.agent_id == *to_id) {
+                            let to_pos = to_tf.translation.truncate();
+                            let mid = (from_pos + to_pos) / 2.0;
+                            let diff = to_pos - from_pos;
+                            let length = diff.length();
+                            let angle = diff.y.atan2(diff.x);
+
+                            let line_mesh = meshes.add(Rectangle::new(length, 1.5));
+                            let line_mat = materials.add(ColorMaterial::from_color(
+                                Color::srgba(1.0, 0.85, 0.2, 0.2),
+                            ));
+
+                            commands.spawn((
+                                Mesh2d(line_mesh),
+                                MeshMaterial2d(line_mat),
+                                Transform::from_xyz(mid.x, mid.y, 0.6)
+                                    .with_rotation(Quat::from_rotation_z(angle)),
+                                ConnectionLine {
+                                    from_agent: msg.from.clone(),
+                                    to_agent: to_id.clone(),
+                                    lifetime: 0.0,
+                                    max_lifetime: 2.0,
+                                },
+                            ));
+                        }
                     }
                 }
             }
-            WorldEvent::AgentUseTool { ref agent_id, .. } => {
+            WorldEvent::AgentUseTool { ref agent_id, ref tool_id, .. } => {
+                // Track on agent sprite
+                for (mut sprite, _) in &mut agents {
+                    if sprite.agent_id == *agent_id {
+                        sprite.last_tool = Some(tool_id.clone());
+                        sprite.tool_count += 1;
+                    }
+                }
                 // Flash effect on the agent
                 if let Some((_, agent_tf)) = agents.iter().find(|(s, _)| s.agent_id == *agent_id) {
                     let pos = agent_tf.translation;
@@ -335,6 +376,28 @@ fn animate_artifact_glow(
                 base.blue * glow,
                 base.alpha,
             );
+        }
+    }
+}
+
+/// Fade and despawn connection lines between agents.
+fn animate_connection_lines(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut lines: Query<(Entity, &mut ConnectionLine, &MeshMaterial2d<ColorMaterial>)>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (entity, mut line, mat_handle) in &mut lines {
+        line.lifetime += time.delta_secs();
+        let frac = line.lifetime / line.max_lifetime;
+
+        if let Some(mat) = materials.get_mut(&mat_handle.0) {
+            let alpha = (1.0 - frac).max(0.0) * 0.2;
+            mat.color = Color::srgba(1.0, 0.85, 0.2, alpha);
+        }
+
+        if line.lifetime >= line.max_lifetime {
+            commands.entity(entity).despawn();
         }
     }
 }

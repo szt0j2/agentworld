@@ -8,6 +8,9 @@ pub struct AgentSprite {
     pub name: String,
     pub role: String,
     pub status: AgentStatus,
+    pub last_tool: Option<String>,
+    pub last_thought: Option<String>,
+    pub tool_count: u32,
 }
 
 /// Marks an entity as an artifact sprite.
@@ -80,4 +83,13 @@ pub struct ToolEffect {
     pub lifetime: f32,
     pub max_lifetime: f32,
     pub success: Option<bool>,
+}
+
+/// A fading connection line between two agents (shown after messages).
+#[derive(Component)]
+pub struct ConnectionLine {
+    pub from_agent: String,
+    pub to_agent: String,
+    pub lifetime: f32,
+    pub max_lifetime: f32,
 }
