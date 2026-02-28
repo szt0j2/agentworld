@@ -41,6 +41,24 @@ fn handle_visual_events(
                         thought.clone()
                     };
 
+                    // Background pill
+                    let pill_width = display.len() as f32 * 6.5 + 16.0;
+                    let pill_mesh = meshes.add(Rectangle::new(pill_width, 20.0));
+                    let pill_mat = materials.add(ColorMaterial::from_color(
+                        Color::srgba(0.1, 0.1, 0.2, 0.8),
+                    ));
+
+                    let bubble = commands.spawn((
+                        Mesh2d(pill_mesh),
+                        MeshMaterial2d(pill_mat),
+                        Transform::from_xyz(pos.x, pos.y + 40.0, 4.5),
+                        ThoughtBubble {
+                            lifetime: 0.0,
+                            max_lifetime: 3.0,
+                        },
+                    )).id();
+
+                    // Text on top of pill
                     commands.spawn((
                         Text2d::new(display),
                         TextFont {
@@ -48,11 +66,8 @@ fn handle_visual_events(
                             ..default()
                         },
                         TextColor(Color::srgba(0.9, 0.9, 1.0, 0.9)),
-                        Transform::from_xyz(pos.x, pos.y + 40.0, 5.0),
-                        ThoughtBubble {
-                            lifetime: 0.0,
-                            max_lifetime: 3.0,
-                        },
+                        Transform::from_xyz(0.0, 0.0, 0.5),
+                        ChildOf(bubble),
                     ));
                 }
             }
@@ -213,18 +228,21 @@ fn handle_visual_events(
 fn animate_thought_bubbles(
     mut commands: Commands,
     time: Res<Time>,
-    mut bubbles: Query<(Entity, &mut ThoughtBubble, &mut Transform, &mut TextColor)>,
+    mut bubbles: Query<(Entity, &mut ThoughtBubble, &mut Transform, &MeshMaterial2d<ColorMaterial>)>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    for (entity, mut bubble, mut tf, mut color) in &mut bubbles {
+    for (entity, mut bubble, mut tf, mat_handle) in &mut bubbles {
         bubble.lifetime += time.delta_secs();
         let frac = bubble.lifetime / bubble.max_lifetime;
 
         // Float upward
         tf.translation.y += 12.0 * time.delta_secs();
 
-        // Fade out
+        // Fade out the background pill
         let alpha = (1.0 - frac).max(0.0);
-        color.0 = Color::srgba(0.9, 0.9, 1.0, alpha);
+        if let Some(mat) = materials.get_mut(&mat_handle.0) {
+            mat.color = Color::srgba(0.1, 0.1, 0.2, 0.8 * alpha);
+        }
 
         if bubble.lifetime >= bubble.max_lifetime {
             commands.entity(entity).despawn();

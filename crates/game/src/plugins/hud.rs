@@ -11,6 +11,7 @@ impl Plugin for HudPlugin {
             .add_systems(Startup, spawn_hud)
             .add_systems(Update, (
                 update_agent_roster,
+                handle_roster_clicks,
                 update_event_log_display,
             ));
     }
@@ -164,6 +165,7 @@ fn update_agent_roster(
             let is_followed = follow.target.as_ref() == Some(&agent.agent_id);
 
             let entry = commands.spawn((
+                Button,
                 Node {
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
@@ -174,7 +176,7 @@ fn update_agent_roster(
                 BackgroundColor(if is_followed {
                     Color::srgba(0.2, 0.2, 0.4, 0.5)
                 } else {
-                    Color::NONE
+                    Color::srgba(0.1, 0.1, 0.15, 0.3)
                 }),
                 AgentRosterEntry {
                     agent_id: agent.agent_id.clone(),
@@ -223,6 +225,22 @@ fn update_agent_roster(
         // Remove entries for despawned agents
         if !agent_ids.contains(&roster_entry.agent_id) {
             commands.entity(entry_entity).despawn();
+        }
+    }
+}
+
+/// Handle clicks on agent roster entries to follow that agent.
+fn handle_roster_clicks(
+    entries: Query<(&Interaction, &AgentRosterEntry), Changed<Interaction>>,
+    mut follow: ResMut<CameraFollow>,
+) {
+    for (interaction, entry) in &entries {
+        if *interaction == Interaction::Pressed {
+            if follow.target.as_ref() == Some(&entry.agent_id) {
+                follow.target = None; // Click again to unfollow
+            } else {
+                follow.target = Some(entry.agent_id.clone());
+            }
         }
     }
 }
