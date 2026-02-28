@@ -3,7 +3,7 @@
 **See your AI agents work.** Not logs. Not dashboards. A living, breathing world where every tool call, every message, every decision becomes visible and spatial.
 
 <!-- TODO: Replace with generated hero image -->
-<!-- ![AgentWorld Screenshot](docs/hero.png) -->
+![AgentWorld Screenshot](docs/hero.png) -->
 
 ## What Is This?
 
