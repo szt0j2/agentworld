@@ -1,6 +1,6 @@
 use agent_world_core::{AgentStatus, WorldEvent};
 use bevy::prelude::*;
-use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, EnergyBar, HealthBar, MovementTarget, StatusRing};
+use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, EnergyBar, HealthBar, MovementTarget, StatusRing, TrailDot};
 use crate::plugins::events::PendingEvents;
 
 pub struct AgentPlugin;
@@ -17,6 +17,8 @@ impl Plugin for AgentPlugin {
             .add_systems(Update, (
                 handle_agent_events,
                 move_agents,
+                emit_trail_dots,
+                fade_trail_dots,
                 artifacts_follow_owners,
                 update_status_visuals,
             ).chain());
@@ -222,6 +224,71 @@ fn move_agents(
                 transform.translation.x += velocity.x;
                 transform.translation.y += velocity.y;
             }
+        }
+    }
+}
+
+/// Emit trail dots behind moving agents.
+fn emit_trail_dots(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    agents: Query<(&AgentSprite, &Transform, &MovementTarget)>,
+    mut timer: Local<f32>,
+    time: Res<Time>,
+) {
+    *timer += time.delta_secs();
+    if *timer < 0.3 {
+        return; // emit a dot every 0.3s
+    }
+    *timer = 0.0;
+
+    let dot_mesh = meshes.add(Circle::new(3.0));
+
+    for (sprite, transform, target) in &agents {
+        let pos = transform.translation.truncate();
+        let dist = (target.target - pos).length();
+        if dist < 2.0 {
+            continue; // not moving
+        }
+
+        let color = match sprite.status {
+            AgentStatus::Acting => Color::srgba(0.2, 0.9, 0.3, 0.15),
+            AgentStatus::Thinking => Color::srgba(0.3, 0.5, 1.0, 0.12),
+            _ => Color::srgba(0.5, 0.5, 0.6, 0.10),
+        };
+
+        let dot_mat = materials.add(ColorMaterial::from_color(color));
+        commands.spawn((
+            Mesh2d(dot_mesh.clone()),
+            MeshMaterial2d(dot_mat),
+            Transform::from_xyz(pos.x, pos.y, 0.3),
+            TrailDot {
+                lifetime: 0.0,
+                max_lifetime: 4.0,
+            },
+        ));
+    }
+}
+
+/// Fade and despawn trail dots.
+fn fade_trail_dots(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut dots: Query<(Entity, &mut TrailDot, &MeshMaterial2d<ColorMaterial>)>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (entity, mut dot, mat_handle) in &mut dots {
+        dot.lifetime += time.delta_secs();
+        let frac = dot.lifetime / dot.max_lifetime;
+
+        if let Some(mat) = materials.get_mut(&mat_handle.0) {
+            let base = mat.color.to_srgba();
+            mat.color = Color::srgba(base.red, base.green, base.blue, base.alpha * (1.0 - frac));
+        }
+
+        if dot.lifetime >= dot.max_lifetime {
+            commands.entity(entity).despawn();
         }
     }
 }

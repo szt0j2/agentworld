@@ -85,6 +85,13 @@ pub struct ToolEffect {
     pub success: Option<bool>,
 }
 
+/// A fading trail dot left behind by a moving agent.
+#[derive(Component)]
+pub struct TrailDot {
+    pub lifetime: f32,
+    pub max_lifetime: f32,
+}
+
 /// A fading connection line between two agents (shown after messages).
 #[derive(Component)]
 pub struct ConnectionLine {

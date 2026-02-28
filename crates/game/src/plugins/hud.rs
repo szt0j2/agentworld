@@ -22,6 +22,7 @@ impl Plugin for HudPlugin {
                 update_inspector_panel,
                 update_connection_status,
                 update_activity_timeline,
+                toggle_help_overlay,
             ));
     }
 }
@@ -119,6 +120,9 @@ struct TimelinePanel;
 struct TimelineBar {
     index: usize,
 }
+
+#[derive(Component)]
+struct HelpOverlay;
 
 fn spawn_hud(mut commands: Commands) {
     // Root container — full screen overlay
@@ -284,6 +288,43 @@ fn spawn_hud(mut commands: Commands) {
                 EventLogText,
             ));
         });
+    });
+
+    // Help overlay — initially hidden, toggled with H key
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            top: Val::Px(60.0),
+            right: Val::Px(230.0),
+            width: Val::Px(200.0),
+            flex_direction: FlexDirection::Column,
+            padding: UiRect::all(Val::Px(10.0)),
+            display: Display::None,
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.06, 0.06, 0.15, 0.92)),
+        HelpOverlay,
+    )).with_children(|panel| {
+        let help_text = "\
+CONTROLS\n\
+\n\
+1-9    Follow agent\n\
+Esc    Stop following\n\
+Scroll Zoom in/out\n\
+MMB    Pan camera\n\
+H      Toggle help\n\
+\n\
+Click agent in roster\n\
+to inspect details";
+
+        panel.spawn((
+            Text::new(help_text),
+            TextFont {
+                font_size: 10.0,
+                ..default()
+            },
+            TextColor(Color::srgba(0.7, 0.75, 0.9, 0.9)),
+        ));
     });
 }
 
@@ -506,6 +547,22 @@ fn update_activity_timeline(
         let green = 0.4 + normalized * 0.5;
         let blue = 0.7 + normalized * 0.3;
         *bg = BackgroundColor(Color::srgba(0.2, green, blue, alpha));
+    }
+}
+
+/// Toggle the help overlay with the H key.
+fn toggle_help_overlay(
+    keys: Res<ButtonInput<KeyCode>>,
+    mut overlay: Query<&mut Node, With<HelpOverlay>>,
+) {
+    if keys.just_pressed(KeyCode::KeyH) {
+        for mut node in &mut overlay {
+            node.display = if node.display == Display::None {
+                Display::Flex
+            } else {
+                Display::None
+            };
+        }
     }
 }
 
