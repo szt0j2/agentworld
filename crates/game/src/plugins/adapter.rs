@@ -21,15 +21,26 @@ impl Default for AdapterConfig {
     }
 }
 
+/// Connection status visible to the HUD.
+#[derive(Resource, Default, Clone, Copy, PartialEq, Eq)]
+pub enum ConnectionStatus {
+    #[default]
+    Disconnected,
+    Connecting,
+    Connected,
+    Reconnecting,
+}
+
 /// Internal state for the WebSocket connection.
 /// Uses NonSend because web_sys::WebSocket and Rc<RefCell> are not Send+Sync.
-/// This is fine — WASM is single-threaded.
 struct WsState {
     #[cfg(target_arch = "wasm32")]
     incoming: std::rc::Rc<std::cell::RefCell<Vec<String>>>,
     #[cfg(target_arch = "wasm32")]
     ws: Option<web_sys::WebSocket>,
     connected: bool,
+    reconnect_cooldown: f32,
+    reconnect_attempts: u32,
 }
 
 impl Default for WsState {
@@ -40,6 +51,8 @@ impl Default for WsState {
             #[cfg(target_arch = "wasm32")]
             ws: None,
             connected: false,
+            reconnect_cooldown: 0.0,
+            reconnect_attempts: 0,
         }
     }
 }
@@ -49,6 +62,7 @@ impl Plugin for AdapterPlugin {
         let config = get_config_from_url();
 
         app.insert_resource(config)
+            .init_resource::<ConnectionStatus>()
             .insert_non_send_resource(WsState::default())
             .add_systems(Update, (
                 try_connect,
@@ -85,14 +99,26 @@ fn get_config_from_url() -> AdapterConfig {
 }
 
 /// Try to establish WebSocket connection if configured and not connected.
+/// Includes reconnection with exponential backoff.
 fn try_connect(
     config: Res<AdapterConfig>,
+    time: Res<Time>,
     mut state: NonSendMut<WsState>,
+    mut status: ResMut<ConnectionStatus>,
     mut log: ResMut<EventLog>,
 ) {
     if !config.enabled || state.connected || config.url.is_empty() {
         return;
     }
+
+    // Reconnect cooldown
+    if state.reconnect_cooldown > 0.0 {
+        state.reconnect_cooldown -= time.delta_secs();
+        *status = ConnectionStatus::Reconnecting;
+        return;
+    }
+
+    *status = ConnectionStatus::Connecting;
 
     #[cfg(target_arch = "wasm32")]
     {
@@ -105,7 +131,6 @@ fn try_connect(
 
                 let incoming = state.incoming.clone();
 
-                // onmessage callback — push text into shared buffer
                 let onmessage = Closure::wrap(Box::new(move |e: MessageEvent| {
                     if let Ok(text) = e.data().dyn_into::<js_sys::JsString>() {
                         let s: String = text.into();
@@ -115,14 +140,12 @@ fn try_connect(
                 ws.set_onmessage(Some(onmessage.as_ref().unchecked_ref()));
                 onmessage.forget();
 
-                // onopen
                 let onopen = Closure::wrap(Box::new(move |_: JsValue| {
                     web_sys::console::log_1(&"AgentWorld: WebSocket connected".into());
                 }) as Box<dyn FnMut(JsValue)>);
                 ws.set_onopen(Some(onopen.as_ref().unchecked_ref()));
                 onopen.forget();
 
-                // onerror
                 let onerror = Closure::wrap(Box::new(move |_: JsValue| {
                     web_sys::console::log_1(&"AgentWorld: WebSocket error".into());
                 }) as Box<dyn FnMut(JsValue)>);
@@ -131,10 +154,16 @@ fn try_connect(
 
                 state.ws = Some(ws);
                 state.connected = true;
+                state.reconnect_attempts = 0;
+                *status = ConnectionStatus::Connected;
                 log.push("WS: connected".into());
             }
             Err(_) => {
-                log.push("WS: connection failed".into());
+                // Exponential backoff: 2s, 4s, 8s, 16s, max 30s
+                state.reconnect_attempts += 1;
+                state.reconnect_cooldown = (2.0_f32 * 2.0_f32.powi(state.reconnect_attempts as i32 - 1)).min(30.0);
+                *status = ConnectionStatus::Reconnecting;
+                log.push(format!("WS: failed, retry in {:.0}s", state.reconnect_cooldown));
             }
         }
     }
@@ -142,13 +171,14 @@ fn try_connect(
     #[cfg(not(target_arch = "wasm32"))]
     {
         log.push("WS: not available (native)".into());
-        state.connected = false; // suppress unused warning
+        state.connected = false;
     }
 }
 
 /// Poll incoming WebSocket messages and dispatch as WorldEvents.
 fn poll_messages(
     mut state: NonSendMut<WsState>,
+    mut status: ResMut<ConnectionStatus>,
     mut pending: ResMut<PendingEvents>,
     mut visual: ResMut<PendingVisualEvents>,
     mut log: ResMut<EventLog>,
@@ -163,7 +193,12 @@ fn poll_messages(
         if let Some(ref ws) = state.ws {
             if ws.ready_state() == web_sys::WebSocket::CLOSED {
                 state.connected = false;
-                log.push("WS: disconnected".into());
+                state.ws = None;
+                // Will auto-reconnect on next try_connect tick
+                state.reconnect_cooldown = 2.0;
+                state.reconnect_attempts = 1;
+                *status = ConnectionStatus::Reconnecting;
+                log.push("WS: disconnected, reconnecting...".into());
                 return;
             }
         }
@@ -208,6 +243,6 @@ fn poll_messages(
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let _ = (&mut pending, &mut visual, &mut log);
+        let _ = (&mut pending, &mut visual, &mut log, &mut status);
     }
 }

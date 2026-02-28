@@ -1,6 +1,7 @@
 use agent_world_core::AgentStatus;
 use bevy::prelude::*;
 use crate::components::AgentSprite;
+use crate::plugins::adapter::ConnectionStatus;
 use crate::plugins::camera::CameraFollow;
 
 pub struct HudPlugin;
@@ -15,6 +16,7 @@ impl Plugin for HudPlugin {
                 handle_roster_clicks,
                 update_event_log_display,
                 update_inspector_panel,
+                update_connection_status,
             ));
     }
 }
@@ -63,6 +65,9 @@ struct InspectorPanel;
 #[derive(Component)]
 struct InspectorText;
 
+#[derive(Component)]
+struct ConnectionStatusDot;
+
 fn spawn_hud(mut commands: Commands) {
     // Root container — full screen overlay
     commands.spawn((
@@ -91,19 +96,35 @@ fn spawn_hud(mut commands: Commands) {
     
             AgentRosterPanel,
         )).with_children(|panel| {
-            // Title
+            // Title row with connection status dot
             panel.spawn((
-                Text::new("AGENTS"),
-                TextFont {
-                    font_size: 14.0,
-                    ..default()
-                },
-                TextColor(Color::srgba(0.7, 0.7, 0.9, 1.0)),
                 Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
                     margin: UiRect::bottom(Val::Px(8.0)),
                     ..default()
                 },
-            ));
+            )).with_children(|title_row| {
+                title_row.spawn((
+                    Text::new("AGENTS"),
+                    TextFont {
+                        font_size: 14.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgba(0.7, 0.7, 0.9, 1.0)),
+                ));
+                // Connection status dot
+                title_row.spawn((
+                    Node {
+                        width: Val::Px(8.0),
+                        height: Val::Px(8.0),
+                        margin: UiRect::left(Val::Px(6.0)),
+                        ..default()
+                    },
+                    BackgroundColor(Color::srgb(0.5, 0.5, 0.5)),
+                    ConnectionStatusDot,
+                ));
+            });
         });
 
         // Center area (game canvas + inspector at bottom)
@@ -313,6 +334,25 @@ fn update_event_log_display(
 
     for mut text in &mut text_query {
         **text = display.clone();
+    }
+}
+
+/// Update connection status dot color.
+fn update_connection_status(
+    status: Res<ConnectionStatus>,
+    mut dots: Query<&mut BackgroundColor, With<ConnectionStatusDot>>,
+) {
+    if !status.is_changed() {
+        return;
+    }
+    let color = match *status {
+        ConnectionStatus::Disconnected => Color::srgb(0.5, 0.5, 0.5),
+        ConnectionStatus::Connecting => Color::srgb(0.9, 0.7, 0.1),
+        ConnectionStatus::Connected => Color::srgb(0.2, 0.9, 0.3),
+        ConnectionStatus::Reconnecting => Color::srgb(0.9, 0.4, 0.1),
+    };
+    for mut bg in &mut dots {
+        *bg = BackgroundColor(color);
     }
 }
 
