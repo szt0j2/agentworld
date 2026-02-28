@@ -382,6 +382,7 @@ fn log_visual_events(
     pending: Res<PendingEvents>,
     visual: Res<PendingVisualEvents>,
     mut log: ResMut<EventLog>,
+    mut timeline: ResMut<crate::plugins::hud::ActivityTimeline>,
 ) {
     for event in &pending.queue {
         match event {
@@ -409,6 +410,12 @@ fn log_visual_events(
             _ => {}
         }
     }
+    // Record activity on the timeline
+    let event_count = pending.queue.len() + visual.queue.len();
+    for _ in 0..event_count {
+        timeline.record_event();
+    }
+
     for event in &visual.queue {
         match event {
             WorldEvent::AgentThink { agent_id, thought } => {

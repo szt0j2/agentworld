@@ -4,12 +4,16 @@ use crate::components::AgentSprite;
 use crate::plugins::adapter::ConnectionStatus;
 use crate::plugins::camera::CameraFollow;
 
+/// Number of activity bars in the timeline.
+const TIMELINE_BARS: usize = 40;
+
 pub struct HudPlugin;
 
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EventLog>()
             .init_resource::<InspectorState>()
+            .init_resource::<ActivityTimeline>()
             .add_systems(Startup, spawn_hud)
             .add_systems(Update, (
                 update_agent_roster,
@@ -17,6 +21,7 @@ impl Plugin for HudPlugin {
                 update_event_log_display,
                 update_inspector_panel,
                 update_connection_status,
+                update_activity_timeline,
             ));
     }
 }
@@ -67,6 +72,53 @@ struct InspectorText;
 
 #[derive(Component)]
 struct ConnectionStatusDot;
+
+/// Tracks activity over time bins for the timeline bar.
+#[derive(Resource)]
+pub struct ActivityTimeline {
+    /// Activity count per bin (ring buffer).
+    bins: [u32; TIMELINE_BARS],
+    /// Current bin index.
+    current_bin: usize,
+    /// Timer for advancing bins.
+    timer: f32,
+    /// Seconds per bin.
+    bin_duration: f32,
+}
+
+impl Default for ActivityTimeline {
+    fn default() -> Self {
+        Self {
+            bins: [0; TIMELINE_BARS],
+            current_bin: 0,
+            timer: 0.0,
+            bin_duration: 2.0, // each bar = 2 seconds of activity
+        }
+    }
+}
+
+impl ActivityTimeline {
+    pub fn record_event(&mut self) {
+        self.bins[self.current_bin] = self.bins[self.current_bin].saturating_add(1);
+    }
+
+    fn advance(&mut self, dt: f32) {
+        self.timer += dt;
+        while self.timer >= self.bin_duration {
+            self.timer -= self.bin_duration;
+            self.current_bin = (self.current_bin + 1) % TIMELINE_BARS;
+            self.bins[self.current_bin] = 0;
+        }
+    }
+}
+
+#[derive(Component)]
+struct TimelinePanel;
+
+#[derive(Component)]
+struct TimelineBar {
+    index: usize,
+}
 
 fn spawn_hud(mut commands: Commands) {
     // Root container — full screen overlay
@@ -127,7 +179,7 @@ fn spawn_hud(mut commands: Commands) {
             });
         });
 
-        // Center area (game canvas + inspector at bottom)
+        // Center area (game canvas + inspector + timeline at bottom)
         parent.spawn((
             Node {
                 flex_grow: 1.0,
@@ -145,7 +197,7 @@ fn spawn_hud(mut commands: Commands) {
                     max_height: Val::Px(200.0),
                     flex_direction: FlexDirection::Column,
                     padding: UiRect::all(Val::Px(10.0)),
-                    margin: UiRect::bottom(Val::Px(10.0)),
+                    margin: UiRect::bottom(Val::Px(4.0)),
                     display: Display::None,
                     ..default()
                 },
@@ -161,6 +213,36 @@ fn spawn_hud(mut commands: Commands) {
                     TextColor(Color::srgba(0.8, 0.85, 0.95, 1.0)),
                     InspectorText,
                 ));
+            });
+
+            // Activity timeline — heartbeat bar at bottom
+            center.spawn((
+                Node {
+                    width: Val::Percent(80.0),
+                    max_width: Val::Px(600.0),
+                    height: Val::Px(24.0),
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::End,
+                    justify_content: JustifyContent::Center,
+                    column_gap: Val::Px(1.0),
+                    padding: UiRect::horizontal(Val::Px(4.0)),
+                    margin: UiRect::bottom(Val::Px(4.0)),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.04, 0.04, 0.10, 0.7)),
+                TimelinePanel,
+            )).with_children(|panel| {
+                for i in 0..TIMELINE_BARS {
+                    panel.spawn((
+                        Node {
+                            width: Val::Px(10.0),
+                            height: Val::Px(2.0),
+                            ..default()
+                        },
+                        BackgroundColor(Color::srgba(0.3, 0.4, 0.7, 0.3)),
+                        TimelineBar { index: i },
+                    ));
+                }
             });
         });
 
@@ -394,6 +476,36 @@ fn update_inspector_panel(
                 **text = format!("Agent {} not found", agent_id);
             }
         }
+    }
+}
+
+/// Update the activity timeline bars.
+fn update_activity_timeline(
+    time: Res<Time>,
+    mut timeline: ResMut<ActivityTimeline>,
+    mut bars: Query<(&mut Node, &mut BackgroundColor, &TimelineBar)>,
+) {
+    timeline.advance(time.delta_secs());
+
+    // Find max activity for scaling
+    let max_activity = timeline.bins.iter().copied().max().unwrap_or(1).max(1);
+
+    for (mut node, mut bg, bar) in &mut bars {
+        // Map bar index to ring buffer position (oldest → newest left to right)
+        let bin_idx = (timeline.current_bin + 1 + bar.index) % TIMELINE_BARS;
+        let activity = timeline.bins[bin_idx];
+        let normalized = activity as f32 / max_activity as f32;
+
+        // Height: min 2px, max 20px
+        let height = 2.0 + normalized * 18.0;
+        node.height = Val::Px(height);
+
+        // Color: dim blue → bright cyan based on activity
+        let is_current = bin_idx == timeline.current_bin;
+        let alpha = if is_current { 0.9 } else { 0.3 + normalized * 0.5 };
+        let green = 0.4 + normalized * 0.5;
+        let blue = 0.7 + normalized * 0.3;
+        *bg = BackgroundColor(Color::srgba(0.2, green, blue, alpha));
     }
 }
 
