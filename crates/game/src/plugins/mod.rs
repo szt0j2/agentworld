@@ -1,3 +1,4 @@
+mod adapter;
 mod world;
 mod agents;
 mod camera;
@@ -6,6 +7,7 @@ pub mod events;
 pub mod hud;
 mod visuals;
 
+pub use adapter::AdapterPlugin;
 pub use world::WorldPlugin;
 pub use agents::AgentPlugin;
 pub use camera::CameraPlugin;
