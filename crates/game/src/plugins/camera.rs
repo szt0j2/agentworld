@@ -18,7 +18,7 @@ pub struct CameraZoom {
 
 impl Default for CameraZoom {
     fn default() -> Self {
-        Self { scale: 1.0 }
+        Self { scale: 1.5 }
     }
 }
 
@@ -116,6 +116,10 @@ fn camera_follow_toggle(
         follow.target = Some("coder".into());
     } else if keys.just_pressed(KeyCode::Digit3) {
         follow.target = Some("reviewer".into());
+    } else if keys.just_pressed(KeyCode::Digit4) {
+        follow.target = Some("tester".into());
+    } else if keys.just_pressed(KeyCode::Digit5) {
+        follow.target = Some("deployer".into());
     } else if keys.just_pressed(KeyCode::Escape) {
         follow.target = None;
     }

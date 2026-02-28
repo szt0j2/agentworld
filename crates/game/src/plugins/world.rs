@@ -8,12 +8,19 @@ pub struct WorldPlugin;
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, setup_camera)
-            .add_systems(Update, handle_room_events);
+            .add_systems(Update, (handle_room_events, animate_portals));
     }
 }
 
 fn setup_camera(mut commands: Commands) {
-    commands.spawn((Camera2d, Msaa::Off));
+    commands.spawn((
+        Camera2d,
+        Msaa::Off,
+        Projection::Orthographic(OrthographicProjection {
+            scale: 1.5,
+            ..OrthographicProjection::default_2d()
+        }),
+    ));
 }
 
 /// Process RoomCreate events and spawn room geometry.
@@ -124,7 +131,7 @@ fn handle_room_events(
                     Color::srgba(0.4, 0.2, 0.9, 0.6),
                 ));
 
-                commands.spawn((
+                let portal_entity = commands.spawn((
                     Mesh2d(portal_mesh),
                     MeshMaterial2d(portal_mat),
                     Transform::from_xyz(
@@ -136,25 +143,9 @@ fn handle_room_events(
                         portal_id: portal.id.clone(),
                         target_room: portal.target_room.clone(),
                     },
-                ));
-
-                // Portal label
-                let label_entity = commands.spawn((
-                    Mesh2d(meshes.add(Circle::new(14.0))),
-                    MeshMaterial2d(materials.add(ColorMaterial::from_color(
-                        Color::srgba(0.4, 0.2, 0.9, 0.6),
-                    ))),
-                    Transform::from_xyz(
-                        room_x + portal.position.x,
-                        room_y + portal.position.y,
-                        0.5,
-                    ),
-                    PortalSprite {
-                        portal_id: portal.id.clone(),
-                        target_room: portal.target_room.clone(),
-                    },
                 )).id();
 
+                // Portal label as child
                 commands.spawn((
                     Text2d::new(format!("→ {}", portal.target_room)),
                     TextFont {
@@ -163,11 +154,29 @@ fn handle_room_events(
                     },
                     TextColor(Color::srgba(0.7, 0.5, 1.0, 0.8)),
                     Transform::from_xyz(0.0, 20.0, 0.5),
-                    ChildOf(label_entity),
+                    ChildOf(portal_entity),
                 ));
             }
 
             *room_count += 1;
+        }
+    }
+}
+
+/// Animate portals with a gentle pulse.
+fn animate_portals(
+    time: Res<Time>,
+    mut portals: Query<(&mut Transform, &MeshMaterial2d<ColorMaterial>), With<PortalSprite>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let t = time.elapsed_secs();
+    for (mut tf, mat_handle) in &mut portals {
+        let pulse = 1.0 + (t * 2.0).sin() * 0.15;
+        tf.scale = Vec3::splat(pulse);
+
+        if let Some(mat) = materials.get_mut(&mat_handle.0) {
+            let alpha = 0.4 + (t * 1.5).sin().abs() * 0.3;
+            mat.color = Color::srgba(0.4, 0.2, 0.9, alpha);
         }
     }
 }
