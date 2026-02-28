@@ -1,3 +1,4 @@
+use agent_world_core::AgentStatus;
 use bevy::prelude::*;
 
 /// Marks an entity as an agent sprite in the game world.
@@ -6,6 +7,7 @@ pub struct AgentSprite {
     pub agent_id: String,
     pub name: String,
     pub role: String,
+    pub status: AgentStatus,
 }
 
 /// Marks an entity as an artifact sprite.
@@ -14,7 +16,7 @@ pub struct ArtifactSprite {
     pub artifact_id: String,
 }
 
-/// Simple movement target for agent wandering.
+/// Smooth movement toward a target position.
 #[derive(Component)]
 pub struct MovementTarget {
     pub target: Vec2,
@@ -24,6 +26,12 @@ pub struct MovementTarget {
 /// The text label floating above an agent.
 #[derive(Component)]
 pub struct AgentLabel;
+
+/// Status indicator ring around an agent.
+#[derive(Component)]
+pub struct StatusRing {
+    pub base_scale: f32,
+}
 
 /// Grid cell marker for the room floor.
 #[derive(Component)]

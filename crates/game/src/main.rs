@@ -4,7 +4,7 @@ use bevy::window::CompositeAlphaMode;
 mod components;
 mod plugins;
 
-use plugins::{AgentPlugin, DebugPlugin, WorldPlugin};
+use plugins::{AgentPlugin, CameraPlugin, DebugPlugin, EventBridgePlugin, WorldPlugin};
 
 fn main() {
     App::new()
@@ -20,6 +20,12 @@ fn main() {
             ..default()
         }))
         .insert_resource(ClearColor(Color::srgb(0.08, 0.08, 0.14)))
-        .add_plugins((WorldPlugin, AgentPlugin, DebugPlugin))
+        .add_plugins((
+            WorldPlugin,
+            EventBridgePlugin,
+            AgentPlugin,
+            CameraPlugin,
+            DebugPlugin,
+        ))
         .run();
 }
