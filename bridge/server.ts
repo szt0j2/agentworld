@@ -20,6 +20,10 @@ const PORT = process.argv.includes("--port")
 
 const REPLAY = process.argv.includes("--replay");
 
+const TEAM_FILTER = process.argv.includes("--team")
+  ? process.argv[process.argv.indexOf("--team") + 1]
+  : null;
+
 // ─── Types matching agent-world-core WorldEvent variants ───
 
 interface Position { x: number; y: number }
@@ -114,13 +118,25 @@ function ensureRoom(roomId: string): object[] {
 
   const theme = ROOM_THEMES[roomId] || { purpose: roomId };
 
+  // Build portals to existing rooms
+  const portals: Room["portals"] = [];
+  for (const [existingId, existing] of rooms) {
+    if (existingId === roomId) continue;
+    portals.push({
+      id: `p-${roomId}-${existingId}`,
+      target_room: existingId.charAt(0).toUpperCase() + existingId.slice(1),
+      position: { x: -ROOM_WIDTH / 2 + 30, y: 0 },
+      target_position: { x: ROOM_WIDTH / 2 - 30, y: 0 },
+    });
+  }
+
   const room: Room = {
     id: roomId,
     name: roomId.charAt(0).toUpperCase() + roomId.slice(1),
     width: ROOM_WIDTH,
     height: ROOM_HEIGHT,
     purpose: theme.purpose,
-    portals: [],
+    portals,
   };
 
   return [{ RoomCreate: room }];
@@ -400,11 +416,12 @@ function broadcastToClients(worldEvents: object[]) {
 // ─── Polling loop ───
 
 function pollNewEvents(db: Database) {
-  const stmt = db.prepare(
-    "SELECT id, hook_event_type, event_category, team_name, agent_name, agent_type, payload, summary, timestamp FROM events WHERE id > ? ORDER BY id ASC LIMIT 50"
-  );
+  const query = TEAM_FILTER
+    ? "SELECT id, hook_event_type, event_category, team_name, agent_name, agent_type, payload, summary, timestamp FROM events WHERE id > ? AND team_name = ? ORDER BY id ASC LIMIT 50"
+    : "SELECT id, hook_event_type, event_category, team_name, agent_name, agent_type, payload, summary, timestamp FROM events WHERE id > ? ORDER BY id ASC LIMIT 50";
 
-  const rows = stmt.all(lastEventId) as any[];
+  const stmt = db.prepare(query);
+  const rows = (TEAM_FILTER ? stmt.all(lastEventId, TEAM_FILTER) : stmt.all(lastEventId)) as any[];
 
   for (const row of rows) {
     lastEventId = row.id;
@@ -421,24 +438,33 @@ console.log(`AgentWorld Bridge Server`);
 console.log(`  DB: ${DB_PATH}`);
 console.log(`  Port: ${PORT}`);
 console.log(`  Replay: ${REPLAY}`);
+console.log(`  Team filter: ${TEAM_FILTER || "(all)"}`);
+
 
 const db = new Database(DB_PATH, { readonly: true });
 
-// If not replaying, start from latest event
+// Determine starting point
 if (!REPLAY) {
+  // Start from now — only see new events
   const latest = db.prepare("SELECT MAX(id) as max_id FROM events").get() as any;
   lastEventId = latest?.max_id || 0;
-  console.log(`  Starting from event #${lastEventId} (latest)`);
+  console.log(`  Starting from event #${lastEventId} (latest, live only)`);
 } else {
-  // For replay, start from a recent window
+  // Replay recent events
   const count = db.prepare("SELECT COUNT(*) as cnt FROM events").get() as any;
   const total = count?.cnt || 0;
-  // Replay last 200 events with team data
-  const recent = db.prepare(
-    "SELECT MIN(id) as min_id FROM (SELECT id FROM events WHERE team_name IS NOT NULL ORDER BY id DESC LIMIT 200)"
-  ).get() as any;
+
+  // Find events from the last hour
+  const oneHourAgo = Date.now() - 3600 * 1000;
+  const recentQuery = TEAM_FILTER
+    ? "SELECT MIN(id) as min_id FROM events WHERE timestamp > ? AND team_name = ?"
+    : "SELECT MIN(id) as min_id FROM events WHERE timestamp > ?";
+  const recent = (TEAM_FILTER
+    ? db.prepare(recentQuery).get(oneHourAgo, TEAM_FILTER)
+    : db.prepare(recentQuery).get(oneHourAgo)) as any;
+
   lastEventId = (recent?.min_id || total) - 1;
-  console.log(`  Replaying from event #${lastEventId} (${total} total)`);
+  console.log(`  Replaying from event #${lastEventId} (${total} total, last hour)`);
 }
 
 // Start WebSocket server
