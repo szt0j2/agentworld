@@ -5,6 +5,7 @@ use agent_world_core::{
 };
 use bevy::prelude::*;
 use crate::plugins::hud::EventLog;
+use crate::plugins::adapter::AdapterConfig;
 use std::collections::HashMap;
 
 pub struct EventBridgePlugin;
@@ -31,10 +32,16 @@ impl Plugin for EventBridgePlugin {
 }
 
 /// Emit the initial demo world: three rooms, five agents, artifacts.
+/// Skipped when WebSocket adapter is enabled (real data).
 fn emit_demo_scenario(
+    config: Res<AdapterConfig>,
     mut pending: ResMut<PendingEvents>,
     mut visual: ResMut<PendingVisualEvents>,
 ) {
+    if config.enabled {
+        return; // Skip demo when real data is coming via WebSocket
+    }
+
     use agent_world_core::Portal;
 
     // Room 1: Workspace (left)
@@ -155,12 +162,16 @@ fn emit_demo_scenario(
 
 /// Demo event cycle — a full "story" across three rooms with five agents.
 fn cycle_demo_events(
+    config: Res<AdapterConfig>,
     time: Res<Time>,
     mut timer: Local<f32>,
     mut step: Local<usize>,
     mut pending: ResMut<PendingEvents>,
     mut visual: ResMut<PendingVisualEvents>,
 ) {
+    if config.enabled {
+        return;
+    }
     *timer += time.delta_secs();
     if *timer < 2.0 {
         return;

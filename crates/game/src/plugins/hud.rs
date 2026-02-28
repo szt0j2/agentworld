@@ -8,13 +8,21 @@ pub struct HudPlugin;
 impl Plugin for HudPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<EventLog>()
+            .init_resource::<InspectorState>()
             .add_systems(Startup, spawn_hud)
             .add_systems(Update, (
                 update_agent_roster,
                 handle_roster_clicks,
                 update_event_log_display,
+                update_inspector_panel,
             ));
     }
+}
+
+/// Which agent (if any) is selected for the inspector.
+#[derive(Resource, Default)]
+pub struct InspectorState {
+    pub selected: Option<String>,
 }
 
 /// Stores recent event descriptions for the event log panel.
@@ -48,6 +56,12 @@ struct EventLogPanel;
 
 #[derive(Component)]
 struct EventLogText;
+
+#[derive(Component)]
+struct InspectorPanel;
+
+#[derive(Component)]
+struct InspectorText;
 
 fn spawn_hud(mut commands: Commands) {
     // Root container — full screen overlay
@@ -92,14 +106,42 @@ fn spawn_hud(mut commands: Commands) {
             ));
         });
 
-        // Spacer (game canvas area)
+        // Center area (game canvas + inspector at bottom)
         parent.spawn((
             Node {
                 flex_grow: 1.0,
+                flex_direction: FlexDirection::Column,
+                justify_content: JustifyContent::End,
+                align_items: AlignItems::Center,
                 ..default()
             },
-    
-        ));
+        )).with_children(|center| {
+            // Inspector panel — hidden by default, shown when agent selected
+            center.spawn((
+                Node {
+                    width: Val::Px(360.0),
+                    min_height: Val::Px(80.0),
+                    max_height: Val::Px(200.0),
+                    flex_direction: FlexDirection::Column,
+                    padding: UiRect::all(Val::Px(10.0)),
+                    margin: UiRect::bottom(Val::Px(10.0)),
+                    display: Display::None,
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.06, 0.06, 0.15, 0.92)),
+                InspectorPanel,
+            )).with_children(|panel| {
+                panel.spawn((
+                    Text::new(""),
+                    TextFont {
+                        font_size: 11.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgba(0.8, 0.85, 0.95, 1.0)),
+                    InspectorText,
+                ));
+            });
+        });
 
         // Right side — Event Log
         parent.spawn((
@@ -229,17 +271,20 @@ fn update_agent_roster(
     }
 }
 
-/// Handle clicks on agent roster entries to follow that agent.
+/// Handle clicks on agent roster entries to follow and inspect that agent.
 fn handle_roster_clicks(
     entries: Query<(&Interaction, &AgentRosterEntry), Changed<Interaction>>,
     mut follow: ResMut<CameraFollow>,
+    mut inspector: ResMut<InspectorState>,
 ) {
     for (interaction, entry) in &entries {
         if *interaction == Interaction::Pressed {
             if follow.target.as_ref() == Some(&entry.agent_id) {
-                follow.target = None; // Click again to unfollow
+                follow.target = None;
+                inspector.selected = None;
             } else {
                 follow.target = Some(entry.agent_id.clone());
+                inspector.selected = Some(entry.agent_id.clone());
             }
         }
     }
@@ -268,6 +313,36 @@ fn update_event_log_display(
 
     for mut text in &mut text_query {
         **text = display.clone();
+    }
+}
+
+/// Update the inspector panel to show details of the selected agent.
+fn update_inspector_panel(
+    inspector: Res<InspectorState>,
+    agents: Query<&AgentSprite>,
+    mut panel_query: Query<&mut Node, With<InspectorPanel>>,
+    mut text_query: Query<&mut Text, With<InspectorText>>,
+) {
+    let Ok(mut panel_node) = panel_query.single_mut() else { return };
+    let Ok(mut text) = text_query.single_mut() else { return };
+
+    match &inspector.selected {
+        None => {
+            panel_node.display = Display::None;
+        }
+        Some(agent_id) => {
+            panel_node.display = Display::Flex;
+
+            if let Some(agent) = agents.iter().find(|a| &a.agent_id == agent_id) {
+                let status_str = format!("{:?}", agent.status);
+                **text = format!(
+                    "[ {} ]\nRole: {}\nStatus: {}\nID: {}",
+                    agent.name, agent.role, status_str, agent.agent_id,
+                );
+            } else {
+                **text = format!("Agent {} not found", agent_id);
+            }
+        }
     }
 }
 
