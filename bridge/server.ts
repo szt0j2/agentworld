@@ -64,6 +64,7 @@ interface Room {
 
 const agents = new Map<string, {
   name: string;
+  role: string;
   room: string;
   pos: Position;
   status: string;
@@ -204,8 +205,10 @@ function translateEvent(row: {
         const pos = agentPosition(teamName);
         const color = nextColor();
 
+        const role = toolInput.subagent_type || "agent";
         agents.set(agentId, {
           name: agentName,
+          role,
           room: teamName,
           pos,
           status: "Idle",
@@ -215,7 +218,7 @@ function translateEvent(row: {
         const agent: Agent = {
           id: agentId,
           name: agentName,
-          role: toolInput.subagent_type || "agent",
+          role,
           provider: "Claude",
           status: "Idle",
           position: pos,
@@ -242,6 +245,7 @@ function translateEvent(row: {
       const agentId = `${teamName}/${agentName}`;
 
       if (agents.has(agentId)) {
+        // First set to Paused, then despawn after a visual beat
         events.push({
           AgentStatusChange: {
             agent_id: agentId,
@@ -249,6 +253,10 @@ function translateEvent(row: {
             reason: "Agent stopped",
           },
         });
+        events.push({
+          AgentDespawn: { agent_id: agentId },
+        });
+        agents.delete(agentId);
       }
       break;
     }
@@ -263,13 +271,14 @@ function translateEvent(row: {
         events.push(...ensureRoom(teamName));
         const pos = agentPosition(teamName);
         const color = nextColor();
-        agents.set(agentId, { name: agentName, room: teamName, pos, status: "Idle", color });
+        const autoRole = row.agent_type || "agent";
+        agents.set(agentId, { name: agentName, role: autoRole, room: teamName, pos, status: "Idle", color });
 
         events.push({
           AgentSpawn: {
             id: agentId,
             name: agentName,
-            role: row.agent_type || "agent",
+            role: autoRole,
             provider: "Claude",
             status: "Idle",
             position: pos,
@@ -349,7 +358,7 @@ function translateEvent(row: {
         });
 
         // File operations create visible artifacts
-        if (toolName === "Write" || toolName === "Edit") {
+        if (toolName === "Write" || toolName === "Edit" || toolName === "NotebookEdit") {
           const filePath = toolInput.file_path || "";
           const fileName = filePath.split("/").pop() || "file";
           const agentData = agents.get(agentId);
@@ -564,7 +573,7 @@ const server = Bun.serve({
           AgentSpawn: {
             id: agentId,
             name: agent.name,
-            role: "agent",
+            role: agent.role,
             provider: "Claude",
             status: agent.status,
             position: agent.pos,
