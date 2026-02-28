@@ -109,6 +109,13 @@ const ROOM_THEMES: Record<string, { purpose: string }> = {
 
 // ─── Event translation ───
 
+function prettifyName(id: string): string {
+  return id
+    .split(/[-_]/)
+    .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 function ensureRoom(roomId: string): object[] {
   if (rooms.has(roomId)) return [];
 
@@ -124,7 +131,7 @@ function ensureRoom(roomId: string): object[] {
     if (existingId === roomId) continue;
     portals.push({
       id: `p-${roomId}-${existingId}`,
-      target_room: existingId.charAt(0).toUpperCase() + existingId.slice(1),
+      target_room: prettifyName(existingId),
       position: { x: -ROOM_WIDTH / 2 + 30, y: 0 },
       target_position: { x: ROOM_WIDTH / 2 - 30, y: 0 },
     });
@@ -132,7 +139,7 @@ function ensureRoom(roomId: string): object[] {
 
   const room: Room = {
     id: roomId,
-    name: roomId.charAt(0).toUpperCase() + roomId.slice(1),
+    name: prettifyName(roomId),
     width: ROOM_WIDTH,
     height: ROOM_HEIGHT,
     purpose: theme.purpose,
@@ -543,7 +550,7 @@ const server = Bun.serve({
         ws.send(JSON.stringify({
           RoomCreate: {
             id: roomId,
-            name: roomId.charAt(0).toUpperCase() + roomId.slice(1),
+            name: prettifyName(roomId),
             width: ROOM_WIDTH,
             height: ROOM_HEIGHT,
             purpose: ROOM_THEMES[roomId]?.purpose || roomId,

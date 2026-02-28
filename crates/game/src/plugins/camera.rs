@@ -29,6 +29,7 @@ impl Plugin for CameraPlugin {
             .add_systems(Update, (
                 camera_zoom,
                 camera_pan,
+                camera_auto_center,
                 camera_follow_agent,
                 camera_follow_toggle,
             ));
@@ -77,6 +78,46 @@ fn camera_pan(
             transform.translation.x -= delta.x * zoom.scale;
             transform.translation.y += delta.y * zoom.scale;
         }
+    }
+}
+
+/// Auto-center camera on agents if no manual interaction yet.
+fn camera_auto_center(
+    time: Res<Time>,
+    follow: Res<CameraFollow>,
+    agents: Query<&Transform, (With<AgentSprite>, Without<Camera2d>)>,
+    mut camera: Query<&mut Transform, With<Camera2d>>,
+    mut has_centered: Local<bool>,
+) {
+    // Only auto-center once, and only if not manually following
+    if follow.target.is_some() || *has_centered {
+        return;
+    }
+
+    // Wait a moment for agents to spawn
+    if time.elapsed_secs() < 1.0 {
+        return;
+    }
+
+    if agents.is_empty() {
+        return;
+    }
+
+    // Center on the average position of all agents
+    let mut sum = Vec2::ZERO;
+    let mut count = 0.0;
+    for transform in &agents {
+        sum += transform.translation.truncate();
+        count += 1.0;
+    }
+
+    if count > 0.0 {
+        let center = sum / count;
+        if let Ok(mut cam) = camera.single_mut() {
+            cam.translation.x = center.x;
+            cam.translation.y = center.y;
+        }
+        *has_centered = true;
     }
 }
 
