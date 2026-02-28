@@ -216,15 +216,24 @@ fn artifacts_follow_owners(
 }
 
 /// Update status ring color and pulse based on agent status.
+/// Also applies a gentle breathing animation to idle agents.
 fn update_status_visuals(
     time: Res<Time>,
-    agents: Query<(&AgentSprite, &Children)>,
-    mut rings: Query<(&mut Transform, &StatusRing, &MeshMaterial2d<ColorMaterial>)>,
+    mut agents: Query<(&AgentSprite, &Children, &mut Transform)>,
+    mut rings: Query<(&mut Transform, &StatusRing, &MeshMaterial2d<ColorMaterial>), Without<AgentSprite>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
     let t = time.elapsed_secs();
 
-    for (sprite, children) in &agents {
+    for (sprite, children, mut agent_tf) in &mut agents {
+        // Gentle breathing animation for idle/thinking agents
+        let breathe = match sprite.status {
+            AgentStatus::Idle => 1.0 + (t * 1.5).sin() * 0.03,
+            AgentStatus::Thinking => 1.0 + (t * 2.0).sin() * 0.02,
+            _ => 1.0,
+        };
+        agent_tf.scale = Vec3::splat(breathe);
+
         for child in children.iter() {
             if let Ok((mut ring_transform, ring, mat_handle)) = rings.get_mut(child) {
                 let (color, pulse) = match sprite.status {
