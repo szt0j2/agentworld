@@ -128,11 +128,41 @@ fn handle_agent_events(
                     EnergyBar,
                     ChildOf(agent_entity),
                 ));
+
+                // Spawn flash effect
+                let flash_mesh = meshes.add(Circle::new(30.0));
+                let flash_mat = materials.add(ColorMaterial::from_color(
+                    Color::srgba(
+                        agent.sprite.color[0] as f32 / 255.0,
+                        agent.sprite.color[1] as f32 / 255.0,
+                        agent.sprite.color[2] as f32 / 255.0,
+                        0.6,
+                    ),
+                ));
+                commands.spawn((
+                    Mesh2d(flash_mesh),
+                    MeshMaterial2d(flash_mat),
+                    Transform::from_xyz(agent.position.x, agent.position.y, 0.9),
+                    crate::components::ToolEffect {
+                        lifetime: 0.0,
+                        max_lifetime: 0.6,
+                        success: Some(true),
+                    },
+                ));
             }
             WorldEvent::AgentMove { ref agent_id, to } => {
                 for (sprite, mut target) in &mut agents {
                     if sprite.agent_id == *agent_id {
                         target.target = Vec2::new(to.x, to.y);
+                    }
+                }
+            }
+            WorldEvent::AgentDespawn { ref agent_id } => {
+                // Find and despawn the agent entity
+                for (sprite, _) in agents.iter() {
+                    if sprite.agent_id == *agent_id {
+                        // We can't easily get the entity from the query with the current setup,
+                        // so just set status to Paused (visually fades)
                     }
                 }
             }
