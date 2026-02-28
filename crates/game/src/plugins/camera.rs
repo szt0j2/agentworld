@@ -105,22 +105,34 @@ fn camera_follow_agent(
     }
 }
 
-/// Press 1/2/3 to follow agents, Escape to stop following.
+/// Press 1-9 to follow the Nth agent, Escape to stop following and close inspector.
 fn camera_follow_toggle(
     keys: Res<ButtonInput<KeyCode>>,
     mut follow: ResMut<CameraFollow>,
+    mut inspector: ResMut<crate::plugins::hud::InspectorState>,
+    agents: Query<&AgentSprite>,
 ) {
-    if keys.just_pressed(KeyCode::Digit1) {
-        follow.target = Some("researcher".into());
-    } else if keys.just_pressed(KeyCode::Digit2) {
-        follow.target = Some("coder".into());
-    } else if keys.just_pressed(KeyCode::Digit3) {
-        follow.target = Some("reviewer".into());
-    } else if keys.just_pressed(KeyCode::Digit4) {
-        follow.target = Some("tester".into());
-    } else if keys.just_pressed(KeyCode::Digit5) {
-        follow.target = Some("deployer".into());
-    } else if keys.just_pressed(KeyCode::Escape) {
+    let digit_keys = [
+        KeyCode::Digit1, KeyCode::Digit2, KeyCode::Digit3,
+        KeyCode::Digit4, KeyCode::Digit5, KeyCode::Digit6,
+        KeyCode::Digit7, KeyCode::Digit8, KeyCode::Digit9,
+    ];
+
+    for (i, key) in digit_keys.iter().enumerate() {
+        if keys.just_pressed(*key) {
+            // Collect and sort agent IDs for stable ordering
+            let mut ids: Vec<String> = agents.iter().map(|a| a.agent_id.clone()).collect();
+            ids.sort();
+            if let Some(id) = ids.get(i) {
+                follow.target = Some(id.clone());
+                inspector.selected = Some(id.clone());
+            }
+            return;
+        }
+    }
+
+    if keys.just_pressed(KeyCode::Escape) {
         follow.target = None;
+        inspector.selected = None;
     }
 }
