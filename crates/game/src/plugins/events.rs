@@ -4,6 +4,7 @@ use agent_world_core::{
     SpriteShape, WorldEvent,
 };
 use bevy::prelude::*;
+use crate::plugins::hud::EventLog;
 use std::collections::HashMap;
 
 pub struct EventBridgePlugin;
@@ -25,7 +26,7 @@ impl Plugin for EventBridgePlugin {
         app.init_resource::<PendingEvents>()
             .init_resource::<PendingVisualEvents>()
             .add_systems(Startup, emit_demo_scenario)
-            .add_systems(Update, cycle_demo_events);
+            .add_systems(Update, (cycle_demo_events, log_visual_events).chain());
     }
 }
 
@@ -313,6 +314,58 @@ fn cycle_demo_events(
     }
 
     *step += 1;
+}
+
+/// Log visual events to the HUD event log.
+fn log_visual_events(
+    pending: Res<PendingEvents>,
+    visual: Res<PendingVisualEvents>,
+    mut log: ResMut<EventLog>,
+) {
+    for event in &pending.queue {
+        match event {
+            WorldEvent::AgentStatusChange { agent_id, status, .. } => {
+                let status_str = match status {
+                    AgentStatus::Idle => "idle",
+                    AgentStatus::Thinking => "thinking",
+                    AgentStatus::Acting => "acting",
+                    AgentStatus::Waiting => "waiting",
+                    AgentStatus::Error => "error",
+                    AgentStatus::Paused => "paused",
+                };
+                log.push(format!("{agent_id} → {status_str}"));
+            }
+            WorldEvent::AgentMove { agent_id, .. } => {
+                log.push(format!("{agent_id} moving"));
+            }
+            _ => {}
+        }
+    }
+    for event in &visual.queue {
+        match event {
+            WorldEvent::AgentThink { agent_id, thought } => {
+                let short = if thought.len() > 25 { &thought[..25] } else { thought };
+                log.push(format!("{agent_id}: \"{short}\""));
+            }
+            WorldEvent::AgentUseTool { agent_id, tool_id, .. } => {
+                log.push(format!("{agent_id} ⚡ {tool_id}"));
+            }
+            WorldEvent::AgentToolResult { agent_id, success, .. } => {
+                let icon = if *success { "✓" } else { "✗" };
+                log.push(format!("{agent_id} {icon} tool result"));
+            }
+            WorldEvent::MessageSend(msg) => {
+                log.push(format!("{} → {}: {}", msg.from, msg.to.join(","), msg.content_preview));
+            }
+            WorldEvent::ArtifactCreate(art) => {
+                log.push(format!("+ artifact: {}", art.name));
+            }
+            WorldEvent::AgentTransfer { from_id, to_id, artifact_id, .. } => {
+                log.push(format!("{from_id} → {to_id}: {artifact_id}"));
+            }
+            _ => {}
+        }
+    }
 }
 
 fn make_agent(
