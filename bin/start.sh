@@ -5,6 +5,10 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Ensure cargo/trunk/bun are in PATH
+source "$HOME/.cargo/env" 2>/dev/null || true
+export PATH="$HOME/.bun/bin:$HOME/.cargo/bin:$PATH"
+
 echo "Starting AgentWorld..."
 
 # Start trunk dev server in background

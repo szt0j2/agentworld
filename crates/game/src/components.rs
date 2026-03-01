@@ -105,3 +105,33 @@ pub struct ConnectionLine {
     pub lifetime: f32,
     pub max_lifetime: f32,
 }
+
+/// Minimap dot representing an agent.
+#[derive(Component)]
+pub struct MinimapDot {
+    pub agent_id: String,
+}
+
+/// Minimap container node.
+#[derive(Component)]
+pub struct MinimapPanel;
+
+/// Agent currently transitioning through a portal.
+#[derive(Component)]
+pub struct PortalTransition {
+    pub phase: PortalPhase,
+    pub timer: f32,
+    pub source_pos: Vec2,
+    pub dest_pos: Vec2,
+    pub phase_duration: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum PortalPhase {
+    /// Moving toward the source portal
+    Approaching,
+    /// Shrinking at source portal
+    WarpOut,
+    /// Growing at destination portal
+    WarpIn,
+}

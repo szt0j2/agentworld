@@ -248,15 +248,21 @@ fn cycle_demo_events(
             use_tool(&mut visual, "coder", "file-write");
         }
         5 => {
-            // Coder moves toward Reviewer to send PR
-            approach(&mut pending, "coder", "reviewer");
+            // Coder warps through portal to Review room to deliver PR
             tool_result(&mut visual, "coder", "file-write", true);
             send_msg(&mut visual, "coder", &["reviewer"], "PR ready", t);
             transfer(&mut visual, "coder", "reviewer", "main-rs");
+            pending.queue.push(WorldEvent::RoomEnter {
+                agent_id: "coder".into(),
+                room_id: "review".into(),
+            });
         }
         6 => {
-            // Coder returns home, Reviewer + Tester start examining
-            go_home(&mut pending, "coder");
+            // Coder returns home through portal, Reviewer + Tester start examining
+            pending.queue.push(WorldEvent::RoomEnter {
+                agent_id: "coder".into(),
+                room_id: "workspace".into(),
+            });
             set_status(&mut pending, "coder", AgentStatus::Idle);
             set_status(&mut pending, "reviewer", AgentStatus::Thinking);
             think(&mut visual, "reviewer", "Checking edge cases...");
@@ -305,16 +311,22 @@ fn cycle_demo_events(
             send_msg(&mut visual, "tester", &["reviewer", "coder"], "All tests pass!", t);
         }
         12 => {
-            // Reviewer approves, moves toward Deployer to hand off
-            approach(&mut pending, "reviewer", "deployer");
+            // Reviewer approves, warps through portal to Deploy room
             set_status(&mut pending, "reviewer", AgentStatus::Acting);
             think(&mut visual, "reviewer", "LGTM, approved!");
             send_msg(&mut visual, "reviewer", &["deployer"], "Deploy approved", t);
             transfer(&mut visual, "reviewer", "deployer", "main-rs");
+            pending.queue.push(WorldEvent::RoomEnter {
+                agent_id: "reviewer".into(),
+                room_id: "deploy".into(),
+            });
         }
         13 => {
-            // Reviewer + Tester return home and idle, Deployer starts
-            go_home(&mut pending, "reviewer");
+            // Reviewer returns home through portal, Tester idles, Deployer starts
+            pending.queue.push(WorldEvent::RoomEnter {
+                agent_id: "reviewer".into(),
+                room_id: "review".into(),
+            });
             set_status(&mut pending, "reviewer", AgentStatus::Idle);
             go_home(&mut pending, "tester");
             set_status(&mut pending, "tester", AgentStatus::Idle);
@@ -435,6 +447,12 @@ fn log_visual_events(
             WorldEvent::AgentError { agent_id, error } => {
                 let short_err = if error.len() > 25 { &error[..25] } else { error };
                 log.push(format!("! {} ERR: {short_err}", short_id(agent_id)));
+            }
+            WorldEvent::RoomEnter { agent_id, room_id } => {
+                log.push(format!("{} >> {}", short_id(agent_id), room_id));
+            }
+            WorldEvent::RoomExit { agent_id, room_id } => {
+                log.push(format!("{} << {}", short_id(agent_id), room_id));
             }
             _ => {}
         }

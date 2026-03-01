@@ -1,7 +1,8 @@
 use agent_world_core::{AgentStatus, WorldEvent};
 use bevy::prelude::*;
-use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, EnergyBar, HealthBar, MovementTarget, StatusRing, TrailDot};
+use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, EnergyBar, HealthBar, MovementTarget, PortalPhase, PortalTransition, StatusRing, TrailDot};
 use crate::plugins::events::PendingEvents;
+use crate::plugins::world::{PortalIndex, RoomIndex};
 
 pub struct AgentPlugin;
 
@@ -16,6 +17,8 @@ impl Plugin for AgentPlugin {
         app.init_resource::<AgentIndex>()
             .add_systems(Update, (
                 handle_agent_events,
+                handle_portal_transitions,
+                animate_portal_warp,
                 move_agents,
                 emit_trail_dots,
                 fade_trail_dots,
@@ -33,6 +36,8 @@ fn handle_agent_events(
     mut pending: ResMut<PendingEvents>,
     mut agents: Query<(Entity, &mut AgentSprite, &mut MovementTarget)>,
     mut index: ResMut<AgentIndex>,
+    room_index: Res<RoomIndex>,
+    portal_index: Res<PortalIndex>,
 ) {
     let events: Vec<WorldEvent> = pending.queue.drain(..).collect();
 
@@ -200,6 +205,44 @@ fn handle_agent_events(
                     }
                 }
             }
+            WorldEvent::RoomEnter { ref agent_id, ref room_id } => {
+                // Find the nearest portal that targets this room
+                // and initiate a portal transition
+                if let Some(entity) = index.map.get(agent_id).copied() {
+                    // Find a portal whose target_room matches room_id (case-insensitive)
+                    let room_lower = room_id.to_lowercase();
+                    let source_portal = portal_index.portals.iter()
+                        .find(|(_, info)| info.target_room.to_lowercase() == room_lower);
+
+                    if let Some((_, portal_info)) = source_portal {
+                        // Compute destination: target room position + target local offset
+                        let dest = if let Some(room_pos) = room_index.positions.get(&room_lower) {
+                            *room_pos + portal_info.target_local_pos
+                        } else {
+                            // Fallback: try to find room by name match
+                            room_index.positions.iter()
+                                .find(|(k, _)| k.to_lowercase() == room_lower)
+                                .map(|(_, pos)| *pos + portal_info.target_local_pos)
+                                .unwrap_or(portal_info.world_pos)
+                        };
+
+                        // Start portal transition: move to source portal first
+                        commands.entity(entity).insert(PortalTransition {
+                            phase: PortalPhase::Approaching,
+                            timer: 0.0,
+                            source_pos: portal_info.world_pos,
+                            dest_pos: dest,
+                            phase_duration: 0.4,
+                        });
+
+                        // Override movement target to go to portal
+                        if let Ok((_, _, mut target)) = agents.get_mut(entity) {
+                            target.target = portal_info.world_pos;
+                            target.speed = 200.0; // Move fast toward portal
+                        }
+                    }
+                }
+            }
             _ => {}
         }
     }
@@ -302,6 +345,105 @@ fn artifacts_follow_owners(
         if let Some(ref owner_id) = art.owner {
             if let Some((_, agent_tf)) = agents.iter().find(|(s, _)| s.agent_id == *owner_id) {
                 target.target = agent_tf.translation.truncate() + Vec2::new(20.0, -10.0);
+            }
+        }
+    }
+}
+
+/// Check if approaching agents have reached the source portal.
+fn handle_portal_transitions(
+    mut agents: Query<(Entity, &Transform, &MovementTarget, &mut PortalTransition)>,
+) {
+    for (_entity, transform, _target, mut transition) in &mut agents {
+        if transition.phase == PortalPhase::Approaching {
+            let pos = transform.translation.truncate();
+            let dist = (transition.source_pos - pos).length();
+            if dist < 10.0 {
+                // Arrived at portal — start warp out
+                transition.phase = PortalPhase::WarpOut;
+                transition.timer = 0.0;
+            }
+        }
+    }
+}
+
+/// Animate portal warp (shrink at source, teleport, grow at destination).
+fn animate_portal_warp(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    time: Res<Time>,
+    mut agents: Query<(Entity, &AgentSprite, &mut Transform, &mut PortalTransition, &mut MovementTarget)>,
+) {
+    for (entity, _sprite, mut transform, mut transition, mut target) in &mut agents {
+        transition.timer += time.delta_secs();
+        let t = (transition.timer / transition.phase_duration).min(1.0);
+
+        match transition.phase {
+            PortalPhase::Approaching => {
+                // Handled by handle_portal_transitions
+            }
+            PortalPhase::WarpOut => {
+                // Shrink + spin at source portal
+                let scale = 1.0 - t;
+                transform.scale = Vec3::splat(scale.max(0.05));
+                transform.rotation = Quat::from_rotation_z(t * std::f32::consts::TAU);
+
+                if t >= 1.0 {
+                    // Teleport to destination
+                    transform.translation.x = transition.dest_pos.x;
+                    transform.translation.y = transition.dest_pos.y;
+                    target.target = transition.dest_pos;
+
+                    // Spawn warp flash at source
+                    let flash_mesh = meshes.add(Circle::new(20.0));
+                    let flash_mat = materials.add(ColorMaterial::from_color(
+                        Color::srgba(0.4, 0.2, 0.9, 0.8),
+                    ));
+                    commands.spawn((
+                        Mesh2d(flash_mesh.clone()),
+                        MeshMaterial2d(flash_mat),
+                        Transform::from_xyz(transition.source_pos.x, transition.source_pos.y, 3.0),
+                        crate::components::ToolEffect {
+                            lifetime: 0.0,
+                            max_lifetime: 0.5,
+                            success: Some(true),
+                        },
+                    ));
+
+                    // Spawn warp flash at destination
+                    let dest_mat = materials.add(ColorMaterial::from_color(
+                        Color::srgba(0.4, 0.2, 0.9, 0.8),
+                    ));
+                    commands.spawn((
+                        Mesh2d(flash_mesh),
+                        MeshMaterial2d(dest_mat),
+                        Transform::from_xyz(transition.dest_pos.x, transition.dest_pos.y, 3.0),
+                        crate::components::ToolEffect {
+                            lifetime: 0.0,
+                            max_lifetime: 0.5,
+                            success: Some(true),
+                        },
+                    ));
+
+                    // Start warp in
+                    transition.phase = PortalPhase::WarpIn;
+                    transition.timer = 0.0;
+                }
+            }
+            PortalPhase::WarpIn => {
+                // Grow + unwind at destination
+                let scale = t;
+                transform.scale = Vec3::splat(scale.max(0.05));
+                transform.rotation = Quat::from_rotation_z((1.0 - t) * std::f32::consts::TAU);
+
+                if t >= 1.0 {
+                    // Done — restore normal state
+                    transform.scale = Vec3::ONE;
+                    transform.rotation = Quat::IDENTITY;
+                    target.speed = 80.0; // Reset to normal speed
+                    commands.entity(entity).remove::<PortalTransition>();
+                }
             }
         }
     }

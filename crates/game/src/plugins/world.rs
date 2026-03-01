@@ -2,12 +2,33 @@ use agent_world_core::WorldEvent;
 use bevy::prelude::*;
 use crate::components::{GridCell, PortalSprite};
 use crate::plugins::events::PendingEvents;
+use std::collections::HashMap;
 
 pub struct WorldPlugin;
 
+/// Maps room_id → world-space center position.
+#[derive(Resource, Default)]
+pub struct RoomIndex {
+    pub positions: HashMap<String, Vec2>,
+}
+
+/// Maps portal_id → (world_pos, target_room_id, target_local_pos).
+#[derive(Resource, Default)]
+pub struct PortalIndex {
+    pub portals: HashMap<String, PortalInfo>,
+}
+
+pub struct PortalInfo {
+    pub world_pos: Vec2,
+    pub target_room: String,
+    pub target_local_pos: Vec2,
+}
+
 impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Startup, setup_camera)
+        app.init_resource::<RoomIndex>()
+            .init_resource::<PortalIndex>()
+            .add_systems(Startup, setup_camera)
             .add_systems(Update, (handle_room_events, animate_portals));
     }
 }
@@ -30,6 +51,8 @@ fn handle_room_events(
     mut materials: ResMut<Assets<ColorMaterial>>,
     pending: Res<PendingEvents>,
     mut room_count: Local<usize>,
+    mut room_index: ResMut<RoomIndex>,
+    mut portal_index: ResMut<PortalIndex>,
 ) {
     for event in &pending.queue {
         if let WorldEvent::RoomCreate(room) = event {
@@ -124,6 +147,9 @@ fn handle_room_events(
                 Transform::from_xyz(room_x, room_y + border_offset + 16.0, 0.2),
             ));
 
+            // Register room position
+            room_index.positions.insert(room.id.clone(), Vec2::new(room_x, room_y));
+
             // Spawn portals
             for portal in &room.portals {
                 let portal_mesh = meshes.add(Circle::new(14.0));
@@ -144,6 +170,13 @@ fn handle_room_events(
                         target_room: portal.target_room.clone(),
                     },
                 )).id();
+
+                // Register portal in index
+                portal_index.portals.insert(portal.id.clone(), PortalInfo {
+                    world_pos: Vec2::new(room_x + portal.position.x, room_y + portal.position.y),
+                    target_room: portal.target_room.clone(),
+                    target_local_pos: Vec2::new(portal.target_position.x, portal.target_position.y),
+                });
 
                 // Portal label as child
                 commands.spawn((

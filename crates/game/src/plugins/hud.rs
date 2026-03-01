@@ -1,6 +1,6 @@
 use agent_world_core::AgentStatus;
 use bevy::prelude::*;
-use crate::components::AgentSprite;
+use crate::components::{AgentSprite, MinimapDot, MinimapPanel};
 use crate::plugins::adapter::ConnectionStatus;
 use crate::plugins::camera::CameraFollow;
 
@@ -17,6 +17,7 @@ impl Plugin for HudPlugin {
                 update_event_log_display,
                 update_inspector_panel,
                 update_connection_status,
+                update_minimap,
                 toggle_help_overlay,
             ));
     }
@@ -239,6 +240,24 @@ Click roster to inspect";
             TextColor(Color::srgba(0.7, 0.75, 0.9, 0.9)),
         ));
     });
+
+    // Minimap overlay — bottom-left corner, shows all rooms + agent dots
+    commands.spawn((
+        Node {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(40.0),
+            left: Val::Px(190.0),
+            width: Val::Px(200.0),
+            height: Val::Px(60.0),
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
+            padding: UiRect::all(Val::Px(4.0)),
+            ..default()
+        },
+        BackgroundColor(Color::srgba(0.03, 0.03, 0.08, 0.85)),
+        MinimapPanel,
+    ));
 }
 
 /// Update the agent roster based on spawned agents.
@@ -441,6 +460,84 @@ fn toggle_help_overlay(
             };
         }
     }
+}
+
+/// Update minimap with agent positions as colored dots.
+fn update_minimap(
+    mut commands: Commands,
+    agents: Query<(&AgentSprite, &Transform), Without<MinimapDot>>,
+    existing_dots: Query<(Entity, &MinimapDot)>,
+    minimap_panel: Query<Entity, With<MinimapPanel>>,
+) {
+    let Ok(panel_entity) = minimap_panel.single() else { return };
+
+    // World bounds for minimap scaling
+    // Rooms are at x≈0, x≈700, x≈1400, each 480x480
+    let world_min_x = -240.0_f32;
+    let world_max_x = 1640.0_f32;
+    let world_min_y = -240.0_f32;
+    let world_max_y = 240.0_f32;
+
+    let map_w = 192.0_f32; // minimap pixel width (200 - 8 padding)
+    let map_h = 52.0_f32;  // minimap pixel height
+
+    // Remove dots for agents that no longer exist
+    let agent_ids: Vec<String> = agents.iter().map(|(a, _)| a.agent_id.clone()).collect();
+    for (dot_entity, dot) in &existing_dots {
+        if !agent_ids.contains(&dot.agent_id) {
+            commands.entity(dot_entity).despawn();
+        }
+    }
+
+    let existing_ids: Vec<String> = existing_dots.iter().map(|(_, d)| d.agent_id.clone()).collect();
+
+    for (agent, transform) in &agents {
+        // Map world position to minimap position
+        let nx = ((transform.translation.x - world_min_x) / (world_max_x - world_min_x)).clamp(0.0, 1.0);
+        let ny = ((transform.translation.y - world_min_y) / (world_max_y - world_min_y)).clamp(0.0, 1.0);
+
+        let dot_x = nx * map_w;
+        let dot_y = (1.0 - ny) * map_h; // flip Y for screen coords
+
+        let color = status_to_color(agent.status);
+
+        if existing_ids.contains(&agent.agent_id) {
+            // Update existing dot position
+            for (dot_entity, dot) in &existing_dots {
+                if dot.agent_id == agent.agent_id {
+                    commands.entity(dot_entity).insert(Node {
+                        position_type: PositionType::Absolute,
+                        left: Val::Px(dot_x),
+                        top: Val::Px(dot_y),
+                        width: Val::Px(6.0),
+                        height: Val::Px(6.0),
+                        ..default()
+                    });
+                    commands.entity(dot_entity).insert(BackgroundColor(color));
+                }
+            }
+        } else {
+            // Spawn new dot
+            commands.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(dot_x),
+                    top: Val::Px(dot_y),
+                    width: Val::Px(6.0),
+                    height: Val::Px(6.0),
+                    ..default()
+                },
+                BackgroundColor(color),
+                MinimapDot {
+                    agent_id: agent.agent_id.clone(),
+                },
+                ChildOf(panel_entity),
+            ));
+        }
+    }
+
+    // Draw room outlines as faint rectangles (only once, when rooms exist)
+    // This is handled implicitly — the dark background + dots give enough context
 }
 
 fn status_to_color(status: AgentStatus) -> Color {
