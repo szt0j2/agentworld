@@ -6,6 +6,8 @@
     <title>AgentWorld</title>
     <link data-trunk rel="rust" data-wasm-opt="z" data-cargo-features="" href="crates/game/Cargo.toml" />
     <link data-trunk rel="copy-dir" href="assets" />
+    <link data-trunk rel="copy-dir" href="frontend/dist" />
+    <link data-trunk rel="css" href="frontend/src/style.css" />
     <style>
         html, body {
             margin: 0;
@@ -24,5 +26,7 @@
 </head>
 <body>
     <canvas id="bevy-canvas"></canvas>
+    <div id="hud-root"></div>
+    <script type="module" src="dist/main.js"></script>
 </body>
 </html>

@@ -1,0 +1,12 @@
+{
+  "name": "agentworld-hud",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "bun build src/main.tsx --outdir dist --minify --target browser"
+  },
+  "dependencies": {
+    "@preact/signals": "^2.8.1",
+    "preact": "^10.25.0"
+  }
+}

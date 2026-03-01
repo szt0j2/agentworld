@@ -4,6 +4,7 @@ use agent_world_core::{
     SpriteShape, WorldEvent,
 };
 use bevy::prelude::*;
+use crate::components::AgentSprite;
 use crate::plugins::hud::EventLog;
 use crate::plugins::adapter::AdapterConfig;
 use std::collections::HashMap;
@@ -27,7 +28,8 @@ impl Plugin for EventBridgePlugin {
         app.init_resource::<PendingEvents>()
             .init_resource::<PendingVisualEvents>()
             .add_systems(Startup, emit_demo_scenario)
-            .add_systems(Update, (cycle_demo_events, log_visual_events).chain());
+            .init_resource::<JsSyncTimer>()
+            .add_systems(Update, (cycle_demo_events, log_visual_events, forward_events_to_js, sync_agents_to_js).chain());
     }
 }
 
@@ -480,6 +482,112 @@ fn log_visual_events(
             }
             _ => {}
         }
+    }
+}
+
+/// Forward events to the React HUD shell via window.__agentworld_event(json).
+fn forward_events_to_js(
+    pending: Res<PendingEvents>,
+    visual: Res<PendingVisualEvents>,
+) {
+    #[cfg(target_arch = "wasm32")]
+    {
+        use serde_json;
+        for event in pending.queue.iter().chain(visual.queue.iter()) {
+            if let Ok(json) = serde_json::to_string(event) {
+                forward_one_event(&json);
+            }
+        }
+    }
+
+    // Suppress unused warnings on non-WASM
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let _ = (&pending, &visual);
+    }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn forward_one_event(json: &str) {
+    use wasm_bindgen::prelude::*;
+
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(js_namespace = window, js_name = "__agentworld_event")]
+        fn js_event_callback(json: &str);
+    }
+
+    // Only call if the function exists (React shell loaded)
+    let window = web_sys::window().unwrap();
+    let has_fn = js_sys::Reflect::get(&window, &JsValue::from_str("__agentworld_event"))
+        .map(|v| v.is_function())
+        .unwrap_or(false);
+    if has_fn {
+        js_event_callback(json);
+    }
+}
+
+/// Timer for periodic agent state sync to JS.
+#[derive(Resource)]
+struct JsSyncTimer {
+    timer: Timer,
+}
+
+impl Default for JsSyncTimer {
+    fn default() -> Self {
+        Self {
+            timer: Timer::from_seconds(0.5, TimerMode::Repeating),
+        }
+    }
+}
+
+/// Periodically sync the full agent roster to the React HUD.
+/// This ensures agents are visible even if AgentSpawn events were missed.
+fn sync_agents_to_js(
+    agents: Query<&AgentSprite>,
+    time: Res<Time>,
+    mut sync_timer: ResMut<JsSyncTimer>,
+) {
+    sync_timer.timer.tick(time.delta());
+    if !sync_timer.timer.just_finished() {
+        return;
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    {
+        let agent_list: Vec<serde_json::Value> = agents.iter().map(|a| {
+            serde_json::json!({
+                "id": a.agent_id,
+                "name": a.name,
+                "role": a.role,
+                "status": format!("{:?}", a.status),
+                "toolCount": a.tool_count,
+                "lastTool": a.last_tool,
+                "thought": a.last_thought,
+            })
+        }).collect();
+
+        if let Ok(json) = serde_json::to_string(&agent_list) {
+            call_js_sync(&json);
+        }
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    let _ = &agents;
+}
+
+#[cfg(target_arch = "wasm32")]
+fn call_js_sync(json: &str) {
+    use wasm_bindgen::prelude::*;
+
+    let window = web_sys::window().unwrap();
+    let has_fn = js_sys::Reflect::get(&window, &JsValue::from_str("__agentworld_sync"))
+        .map(|v| v.is_function())
+        .unwrap_or(false);
+    if has_fn {
+        let func = js_sys::Reflect::get(&window, &JsValue::from_str("__agentworld_sync")).unwrap();
+        let func: js_sys::Function = func.into();
+        let _ = func.call1(&JsValue::NULL, &JsValue::from_str(json));
     }
 }
 

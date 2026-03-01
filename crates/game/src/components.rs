@@ -3,6 +3,7 @@ use bevy::prelude::*;
 
 /// Marks an entity as an agent sprite in the game world.
 #[derive(Component)]
+#[allow(dead_code)]
 pub struct AgentSprite {
     pub agent_id: String,
     pub name: String,
