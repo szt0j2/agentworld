@@ -1,6 +1,6 @@
 use agent_world_core::{AgentStatus, WorldEvent};
 use bevy::prelude::*;
-use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, EnergyBar, HealthBar, MovementTarget, PortalPhase, PortalTransition, StatusRing, TrailDot};
+use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, EnergyBar, HealthBar, MovementTarget, PortalParticle, PortalPhase, PortalTransition, StatusRing, TrailDot};
 use crate::plugins::events::PendingEvents;
 use crate::plugins::sprites::RoleSprites;
 use crate::plugins::world::{PortalIndex, RoomIndex};
@@ -20,6 +20,7 @@ impl Plugin for AgentPlugin {
                 handle_agent_events,
                 handle_portal_transitions,
                 animate_portal_warp,
+                animate_portal_particles,
                 move_agents,
                 emit_trail_dots,
                 fade_trail_dots,
@@ -417,6 +418,8 @@ fn animate_portal_warp(
     time: Res<Time>,
     mut agents: Query<(Entity, &AgentSprite, &mut Transform, &mut PortalTransition, &mut MovementTarget)>,
 ) {
+    let particle_mesh = meshes.add(Circle::new(3.0));
+
     for (entity, _sprite, mut transform, mut transition, mut target) in &mut agents {
         transition.timer += time.delta_secs();
         let t = (transition.timer / transition.phase_duration).min(1.0);
@@ -431,6 +434,28 @@ fn animate_portal_warp(
                 transform.scale = Vec3::splat(scale.max(0.05));
                 transform.rotation = Quat::from_rotation_z(t * std::f32::consts::TAU);
 
+                // Spawn spiraling particles outward during shrink
+                if time.elapsed_secs().fract() < time.delta_secs() * 8.0 {
+                    let angle = t * std::f32::consts::TAU * 3.0;
+                    let offset = Vec2::new(angle.cos(), angle.sin()) * 15.0 * (1.0 - t);
+                    let vel = Vec2::new(angle.cos(), angle.sin()) * 60.0;
+                    let pos = transition.source_pos + offset;
+                    let mat = materials.add(ColorMaterial::from_color(
+                        Color::srgba(0.5, 0.3, 1.0, 0.7),
+                    ));
+                    commands.spawn((
+                        Mesh2d(particle_mesh.clone()),
+                        MeshMaterial2d(mat),
+                        Transform::from_xyz(pos.x, pos.y, 2.5),
+                        PortalParticle {
+                            lifetime: 0.0,
+                            max_lifetime: 0.6,
+                            velocity: vel,
+                            start_scale: 1.0,
+                        },
+                    ));
+                }
+
                 if t >= 1.0 {
                     // Teleport to destination
                     transform.translation.x = transition.dest_pos.x;
@@ -438,9 +463,9 @@ fn animate_portal_warp(
                     target.target = transition.dest_pos;
 
                     // Spawn warp flash at source
-                    let flash_mesh = meshes.add(Circle::new(20.0));
+                    let flash_mesh = meshes.add(Circle::new(25.0));
                     let flash_mat = materials.add(ColorMaterial::from_color(
-                        Color::srgba(0.4, 0.2, 0.9, 0.8),
+                        Color::srgba(0.5, 0.2, 1.0, 0.9),
                     ));
                     commands.spawn((
                         Mesh2d(flash_mesh.clone()),
@@ -455,7 +480,7 @@ fn animate_portal_warp(
 
                     // Spawn warp flash at destination
                     let dest_mat = materials.add(ColorMaterial::from_color(
-                        Color::srgba(0.4, 0.2, 0.9, 0.8),
+                        Color::srgba(0.5, 0.2, 1.0, 0.9),
                     ));
                     commands.spawn((
                         Mesh2d(flash_mesh),
@@ -468,6 +493,48 @@ fn animate_portal_warp(
                         },
                     ));
 
+                    // Particle burst at both portals
+                    for i in 0..12 {
+                        let angle = (i as f32 / 12.0) * std::f32::consts::TAU;
+                        let vel = Vec2::new(angle.cos(), angle.sin()) * 80.0;
+
+                        // Source burst (dispersing)
+                        let mat = materials.add(ColorMaterial::from_color(
+                            Color::srgba(0.6, 0.3, 1.0, 0.8),
+                        ));
+                        commands.spawn((
+                            Mesh2d(particle_mesh.clone()),
+                            MeshMaterial2d(mat),
+                            Transform::from_xyz(transition.source_pos.x, transition.source_pos.y, 2.8),
+                            PortalParticle {
+                                lifetime: 0.0,
+                                max_lifetime: 0.8,
+                                velocity: vel,
+                                start_scale: 1.5,
+                            },
+                        ));
+
+                        // Destination burst (converging then expanding)
+                        let mat2 = materials.add(ColorMaterial::from_color(
+                            Color::srgba(0.3, 0.6, 1.0, 0.8),
+                        ));
+                        commands.spawn((
+                            Mesh2d(particle_mesh.clone()),
+                            MeshMaterial2d(mat2),
+                            Transform::from_xyz(
+                                transition.dest_pos.x + vel.x * 0.3,
+                                transition.dest_pos.y + vel.y * 0.3,
+                                2.8,
+                            ),
+                            PortalParticle {
+                                lifetime: 0.0,
+                                max_lifetime: 0.6,
+                                velocity: -vel * 0.5,
+                                start_scale: 1.2,
+                            },
+                        ));
+                    }
+
                     // Start warp in
                     transition.phase = PortalPhase::WarpIn;
                     transition.timer = 0.0;
@@ -479,14 +546,67 @@ fn animate_portal_warp(
                 transform.scale = Vec3::splat(scale.max(0.05));
                 transform.rotation = Quat::from_rotation_z((1.0 - t) * std::f32::consts::TAU);
 
+                // Spawn converging particles during growth
+                if time.elapsed_secs().fract() < time.delta_secs() * 6.0 {
+                    let angle = t * std::f32::consts::TAU * 2.0 + 1.0;
+                    let spawn_dist = 40.0 * (1.0 - t);
+                    let offset = Vec2::new(angle.cos(), angle.sin()) * spawn_dist;
+                    let vel = -offset.normalize_or_zero() * 50.0;
+                    let pos = transition.dest_pos + offset;
+                    let mat = materials.add(ColorMaterial::from_color(
+                        Color::srgba(0.3, 0.5, 1.0, 0.6),
+                    ));
+                    commands.spawn((
+                        Mesh2d(particle_mesh.clone()),
+                        MeshMaterial2d(mat),
+                        Transform::from_xyz(pos.x, pos.y, 2.5),
+                        PortalParticle {
+                            lifetime: 0.0,
+                            max_lifetime: 0.4,
+                            velocity: vel,
+                            start_scale: 0.8,
+                        },
+                    ));
+                }
+
                 if t >= 1.0 {
                     // Done — restore normal state
                     transform.scale = Vec3::ONE;
                     transform.rotation = Quat::IDENTITY;
-                    target.speed = 80.0; // Reset to normal speed
+                    target.speed = 80.0;
                     commands.entity(entity).remove::<PortalTransition>();
                 }
             }
+        }
+    }
+}
+
+/// Animate and despawn portal particles.
+fn animate_portal_particles(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut particles: Query<(Entity, &mut PortalParticle, &mut Transform, &MeshMaterial2d<ColorMaterial>)>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (entity, mut particle, mut transform, mat_handle) in &mut particles {
+        particle.lifetime += time.delta_secs();
+        let frac = particle.lifetime / particle.max_lifetime;
+
+        // Move
+        transform.translation.x += particle.velocity.x * time.delta_secs();
+        transform.translation.y += particle.velocity.y * time.delta_secs();
+
+        // Shrink + fade
+        let scale = particle.start_scale * (1.0 - frac);
+        transform.scale = Vec3::splat(scale.max(0.01));
+
+        if let Some(mat) = materials.get_mut(&mat_handle.0) {
+            let base = mat.color.to_srgba();
+            mat.color = Color::srgba(base.red, base.green, base.blue, base.alpha * (1.0 - frac * frac));
+        }
+
+        if particle.lifetime >= particle.max_lifetime {
+            commands.entity(entity).despawn();
         }
     }
 }

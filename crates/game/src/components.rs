@@ -148,3 +148,12 @@ pub enum PortalPhase {
     /// Growing at destination portal
     WarpIn,
 }
+
+/// A particle spawned during portal transitions.
+#[derive(Component)]
+pub struct PortalParticle {
+    pub lifetime: f32,
+    pub max_lifetime: f32,
+    pub velocity: Vec2,
+    pub start_scale: f32,
+}
