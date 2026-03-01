@@ -4,7 +4,7 @@ use bevy::window::CompositeAlphaMode;
 mod components;
 mod plugins;
 
-use plugins::{AdapterPlugin, AgentPlugin, CameraPlugin, DebugPlugin, EventBridgePlugin, HudPlugin, SoundPlugin, VisualsPlugin, WorldPlugin};
+use plugins::{AdapterPlugin, AgentPlugin, CameraPlugin, DebugPlugin, EventBridgePlugin, HudPlugin, SoundPlugin, SpriteArtPlugin, VisualsPlugin, WorldPlugin};
 
 fn main() {
     App::new()
@@ -30,6 +30,7 @@ fn main() {
             CameraPlugin,
             DebugPlugin,
             SoundPlugin,
+            SpriteArtPlugin,
         ))
         .run();
 }

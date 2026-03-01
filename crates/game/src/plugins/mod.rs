@@ -6,6 +6,7 @@ mod debug;
 pub mod events;
 pub mod hud;
 mod sound;
+pub mod sprites;
 mod visuals;
 
 pub use adapter::AdapterPlugin;
@@ -16,4 +17,5 @@ pub use debug::DebugPlugin;
 pub use events::EventBridgePlugin;
 pub use hud::HudPlugin;
 pub use sound::SoundPlugin;
+pub use sprites::SpriteArtPlugin;
 pub use visuals::VisualsPlugin;

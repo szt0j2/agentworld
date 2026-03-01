@@ -2,6 +2,7 @@ use agent_world_core::{AgentStatus, WorldEvent};
 use bevy::prelude::*;
 use crate::components::{AgentLabel, AgentSprite, ArtifactSprite, EnergyBar, HealthBar, MovementTarget, PortalPhase, PortalTransition, StatusRing, TrailDot};
 use crate::plugins::events::PendingEvents;
+use crate::plugins::sprites::RoleSprites;
 use crate::plugins::world::{PortalIndex, RoomIndex};
 
 pub struct AgentPlugin;
@@ -38,6 +39,7 @@ fn handle_agent_events(
     mut index: ResMut<AgentIndex>,
     room_index: Res<RoomIndex>,
     portal_index: Res<PortalIndex>,
+    role_sprites: Option<Res<RoleSprites>>,
 ) {
     let events: Vec<WorldEvent> = pending.queue.drain(..).collect();
 
@@ -56,24 +58,53 @@ fn handle_agent_events(
                     agent.sprite.color[3],
                 );
 
-                // Role-based shape: gives each role visual identity
-                let agent_mesh = match agent.role.as_str() {
-                    "researcher" | "explorer" => meshes.add(Circle::new(18.0)),
-                    "reviewer" | "tester" | "qa" => meshes.add(RegularPolygon::new(18.0, 6)), // hexagon
-                    "deployer" | "ops" | "devops" => meshes.add(RegularPolygon::new(18.0, 3)), // triangle
-                    "lead" | "conductor" | "orchestrator" => meshes.add(RegularPolygon::new(20.0, 5)), // pentagon (bigger)
-                    _ => meshes.add(Rectangle::new(32.0, 32.0)), // default: square (coders, general)
-                };
-                let mat = materials.add(ColorMaterial::from_color(color));
+                // Try to use pixel art sprite, fall back to mesh shape
+                let role_lower = agent.role.to_lowercase();
+                let has_sprite = role_sprites.as_ref()
+                    .and_then(|rs| rs.sprites.get(&role_lower).or(rs.default_sprite.as_ref()))
+                    .is_some();
 
-                // Status ring — circle for all roles, slightly larger
-                let ring_mesh = meshes.add(Circle::new(22.0));
-                let ring_mat = materials.add(ColorMaterial::from_color(
-                    Color::srgba(0.5, 0.5, 0.5, 0.3),
-                ));
+                let agent_entity = if has_sprite {
+                    let rs = role_sprites.as_ref().unwrap();
+                    let image = rs.sprites.get(&role_lower)
+                        .or(rs.default_sprite.as_ref())
+                        .unwrap()
+                        .clone();
 
-                let agent_entity = commands
-                    .spawn((
+                    commands.spawn((
+                        Sprite {
+                            image,
+                            color,
+                            custom_size: Some(Vec2::new(40.0, 40.0)),
+                            ..default()
+                        },
+                        Transform::from_xyz(agent.position.x, agent.position.y, 1.0),
+                        AgentSprite {
+                            agent_id: agent.id.clone(),
+                            name: agent.name.clone(),
+                            role: agent.role.clone(),
+                            status: agent.status,
+                            last_tool: None,
+                            last_thought: None,
+                            tool_count: 0,
+                        },
+                        MovementTarget {
+                            target: Vec2::new(agent.position.x, agent.position.y),
+                            speed: 80.0,
+                        },
+                    )).id()
+                } else {
+                    // Fallback: mesh shape
+                    let agent_mesh = match agent.role.as_str() {
+                        "researcher" | "explorer" => meshes.add(Circle::new(18.0)),
+                        "reviewer" | "tester" | "qa" => meshes.add(RegularPolygon::new(18.0, 6)),
+                        "deployer" | "ops" | "devops" => meshes.add(RegularPolygon::new(18.0, 3)),
+                        "lead" | "conductor" | "orchestrator" => meshes.add(RegularPolygon::new(20.0, 5)),
+                        _ => meshes.add(Rectangle::new(32.0, 32.0)),
+                    };
+                    let mat = materials.add(ColorMaterial::from_color(color));
+
+                    commands.spawn((
                         Mesh2d(agent_mesh),
                         MeshMaterial2d(mat),
                         Transform::from_xyz(agent.position.x, agent.position.y, 1.0),
@@ -90,12 +121,16 @@ fn handle_agent_events(
                             target: Vec2::new(agent.position.x, agent.position.y),
                             speed: 80.0,
                         },
-                    ))
-                    .id();
+                    )).id()
+                };
 
                 index.map.insert(agent.id.clone(), agent_entity);
 
-                // Status ring as child
+                // Status ring — circle for all roles
+                let ring_mesh = meshes.add(Circle::new(22.0));
+                let ring_mat = materials.add(ColorMaterial::from_color(
+                    Color::srgba(0.5, 0.5, 0.5, 0.3),
+                ));
                 commands.spawn((
                     Mesh2d(ring_mesh),
                     MeshMaterial2d(ring_mat),
