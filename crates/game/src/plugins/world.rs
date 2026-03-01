@@ -28,6 +28,7 @@ impl Plugin for WorldPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<RoomIndex>()
             .init_resource::<PortalIndex>()
+            .init_resource::<TeamIndex>()
             .add_systems(Startup, setup_camera)
             .add_systems(Update, (handle_room_events, animate_portals, emit_ambient_particles, animate_ambient_particles));
     }
@@ -44,6 +45,12 @@ fn setup_camera(mut commands: Commands) {
     ));
 }
 
+/// Maps team_name → set of room_ids for team cluster tracking.
+#[derive(Resource, Default)]
+pub struct TeamIndex {
+    pub teams: HashMap<String, Vec<String>>,
+}
+
 /// Process RoomCreate events and spawn room geometry.
 fn handle_room_events(
     mut commands: Commands,
@@ -53,6 +60,8 @@ fn handle_room_events(
     mut room_count: Local<usize>,
     mut room_index: ResMut<RoomIndex>,
     mut portal_index: ResMut<PortalIndex>,
+    mut team_index: ResMut<TeamIndex>,
+    mut team_labels: Local<HashMap<String, Entity>>,
 ) {
     for event in &pending.queue {
         if let WorldEvent::RoomCreate(room) = event {
@@ -60,6 +69,28 @@ fn handle_room_events(
             let room_spacing = 700.0;
             let room_x = *room_count as f32 * room_spacing;
             let room_y = 0.0;
+
+            // Track team membership (team name from room.id prefix or room.id itself)
+            let team_name = if room.id.contains('/') {
+                room.id.split('/').next().unwrap_or(&room.id).to_string()
+            } else {
+                room.id.clone()
+            };
+            team_index.teams.entry(team_name.clone()).or_default().push(room.id.clone());
+
+            // Spawn team label above first room in cluster
+            if !team_labels.contains_key(&team_name) {
+                let label_entity = commands.spawn((
+                    Text2d::new(team_name.to_uppercase()),
+                    TextFont {
+                        font_size: 22.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgba(0.5, 0.7, 1.0, 0.7)),
+                    Transform::from_xyz(room_x, room_y + 300.0, 0.3),
+                )).id();
+                team_labels.insert(team_name.clone(), label_entity);
+            }
 
             // Room theme colors based on purpose
             let (dark_color, light_color, border_color) = match room.purpose.as_str() {

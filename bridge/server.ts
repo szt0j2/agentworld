@@ -79,23 +79,38 @@ const ROOM_WIDTH = 500;
 const ROOM_HEIGHT = 400;
 const ROOM_SPACING = 700;
 
-// Agent colors (rotate through)
-const AGENT_COLORS: number[][] = [
-  [100, 149, 237, 255], // cornflower blue
-  [152, 251, 152, 255], // pale green
-  [255, 182, 193, 255], // light pink
-  [255, 218, 185, 255], // peach
-  [221, 160, 221, 255], // plum
-  [176, 224, 230, 255], // powder blue
-  [255, 255, 224, 255], // light yellow
-  [240, 128, 128, 255], // light coral
+// Per-team color palettes — each team gets a distinct hue family
+const TEAM_PALETTES: number[][][] = [
+  [ // Blue family
+    [100, 149, 237, 255], [65, 105, 225, 255], [135, 206, 235, 255], [70, 130, 180, 255],
+  ],
+  [ // Green family
+    [152, 251, 152, 255], [60, 179, 113, 255], [144, 238, 144, 255], [46, 139, 87, 255],
+  ],
+  [ // Coral/Pink family
+    [255, 182, 193, 255], [240, 128, 128, 255], [255, 160, 122, 255], [219, 112, 147, 255],
+  ],
+  [ // Gold/Amber family
+    [255, 218, 185, 255], [255, 215, 0, 255], [255, 193, 37, 255], [238, 180, 34, 255],
+  ],
+  [ // Purple family
+    [221, 160, 221, 255], [186, 85, 211, 255], [147, 112, 219, 255], [138, 43, 226, 255],
+  ],
 ];
-let colorIdx = 0;
 
-function nextColor(): number[] {
-  const c = AGENT_COLORS[colorIdx % AGENT_COLORS.length];
-  colorIdx++;
-  return c;
+// Track per-team color index
+const teamColorIdx = new Map<string, number>();
+let teamPaletteIdx = 0;
+
+function nextColor(teamName: string): number[] {
+  if (!teamColorIdx.has(teamName)) {
+    teamColorIdx.set(teamName, 0);
+  }
+  const paletteNum = [...teamColorIdx.keys()].indexOf(teamName) % TEAM_PALETTES.length;
+  const palette = TEAM_PALETTES[paletteNum];
+  const idx = teamColorIdx.get(teamName)!;
+  teamColorIdx.set(teamName, idx + 1);
+  return palette[idx % palette.length];
 }
 
 // Room purposes — must match game's world.rs theme matching ("workspace", "review", "deploy")
@@ -135,23 +150,46 @@ function prettifyName(id: string): string {
     .join(" ");
 }
 
-function ensureRoom(roomId: string): object[] {
+// Track which team owns each room for clustering
+const roomTeamOwner = new Map<string, string>();
+const teamRoomCounts = new Map<string, number>();
+
+// Team cluster spacing — each team gets a wide horizontal band
+const TEAM_CLUSTER_SPACING = 2500;
+
+function ensureRoom(roomId: string, teamName?: string): object[] {
   if (rooms.has(roomId)) return [];
 
-  const idx = rooms.size;
-  const pos: Position = { x: idx * ROOM_SPACING, y: 0 };
+  const team = teamName || roomId;
+  roomTeamOwner.set(roomId, team);
+
+  // Get team's cluster index (which horizontal band)
+  const teamList = [...new Set([...roomTeamOwner.values()])];
+  const teamIdx = teamList.indexOf(team);
+  const roomsInTeam = teamRoomCounts.get(team) || 0;
+  teamRoomCounts.set(team, roomsInTeam + 1);
+
+  // Position: team cluster X offset + room position within cluster
+  const teamBaseX = teamIdx * TEAM_CLUSTER_SPACING;
+  const roomCol = roomsInTeam % 3;
+  const roomRow = Math.floor(roomsInTeam / 3);
+  const pos: Position = {
+    x: teamBaseX + roomCol * ROOM_SPACING,
+    y: roomRow * -ROOM_SPACING,  // stack rows downward
+  };
   rooms.set(roomId, { spawned: true, pos });
 
   const theme = ROOM_THEMES[roomId] || { purpose: roomId };
 
-  // Build portals to existing rooms
+  // Build portals only to rooms in the SAME team
   const portals: Room["portals"] = [];
   for (const [existingId, existing] of rooms) {
     if (existingId === roomId) continue;
+    if (roomTeamOwner.get(existingId) !== team) continue;
     portals.push({
       id: `p-${roomId}-${existingId}`,
       target_room: prettifyName(existingId),
-      position: { x: -ROOM_WIDTH / 2 + 30, y: 0 },
+      position: { x: -ROOM_WIDTH / 2 + 30, y: portals.length * 60 - 30 },
       target_position: { x: ROOM_WIDTH / 2 - 30, y: 0 },
     });
   }
@@ -209,7 +247,7 @@ function translateEvent(row: {
   // Track teams as rooms
   if (teamName && !knownTeams.has(teamName)) {
     knownTeams.add(teamName);
-    events.push(...ensureRoom(teamName));
+    events.push(...ensureRoom(teamName, teamName));
   }
 
   switch (category) {
@@ -219,9 +257,9 @@ function translateEvent(row: {
       const agentId = `${teamName}/${agentName}`;
 
       if (!agents.has(agentId)) {
-        events.push(...ensureRoom(teamName));
+        events.push(...ensureRoom(teamName, teamName));
         const pos = agentPosition(teamName);
-        const color = nextColor();
+        const color = nextColor(teamName);
 
         const role = normalizeRole(toolInput.subagent_type || "agent");
         agents.set(agentId, {
@@ -286,9 +324,9 @@ function translateEvent(row: {
 
       // Auto-create agent if not seen
       if (!agents.has(agentId) && teamName) {
-        events.push(...ensureRoom(teamName));
+        events.push(...ensureRoom(teamName, teamName));
         const pos = agentPosition(teamName);
-        const color = nextColor();
+        const color = nextColor(teamName);
         const autoRole = row.agent_type
           ? normalizeRole(row.agent_type)
           : (agentName === "lead" ? "lead" : "coder");
@@ -459,7 +497,7 @@ function translateEvent(row: {
       // Team create/delete
       if (toolName === "TeamCreate") {
         const newTeam = toolInput.team_name || teamName;
-        events.push(...ensureRoom(newTeam));
+        events.push(...ensureRoom(newTeam, newTeam));
       }
       break;
     }

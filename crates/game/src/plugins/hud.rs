@@ -242,14 +242,14 @@ Click roster to inspect";
         ));
     });
 
-    // Minimap overlay — bottom-left corner, shows all rooms + agent dots
+    // Minimap overlay — bottom area, shows all rooms + agent dots (scales for multi-team)
     commands.spawn((
         Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(40.0),
             left: Val::Px(190.0),
-            width: Val::Px(200.0),
-            height: Val::Px(60.0),
+            width: Val::Px(280.0),
+            height: Val::Px(70.0),
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
             justify_content: JustifyContent::Center,
@@ -261,11 +261,28 @@ Click roster to inspect";
     ));
 }
 
-/// Update the agent roster based on spawned agents.
+/// Team header in the roster sidebar.
+#[derive(Component)]
+struct TeamRosterHeader {
+    team_name: String,
+}
+
+/// Extract team name from agent_id format "team/agent".
+/// Agents without a "/" are grouped under "agents".
+fn agent_team(agent_id: &str) -> &str {
+    if agent_id.contains('/') {
+        agent_id.split('/').next().unwrap_or("agents")
+    } else {
+        "agents"
+    }
+}
+
+/// Update the agent roster grouped by team.
 fn update_agent_roster(
     mut commands: Commands,
     agents: Query<&AgentSprite>,
     existing_entries: Query<(Entity, &AgentRosterEntry)>,
+    existing_headers: Query<(Entity, &TeamRosterHeader)>,
     roster_panel: Query<Entity, With<AgentRosterPanel>>,
     follow: Res<CameraFollow>,
 ) {
@@ -273,57 +290,84 @@ fn update_agent_roster(
 
     let agent_ids: Vec<String> = agents.iter().map(|a| a.agent_id.clone()).collect();
     let existing_ids: Vec<String> = existing_entries.iter().map(|(_, e)| e.agent_id.clone()).collect();
+    let existing_team_names: Vec<String> = existing_headers.iter().map(|(_, h)| h.team_name.clone()).collect();
 
+    // Collect agents grouped by team
+    let mut teams: std::collections::BTreeMap<String, Vec<&AgentSprite>> = std::collections::BTreeMap::new();
     for agent in agents.iter() {
-        if !existing_ids.contains(&agent.agent_id) {
-            let status_color = status_to_color(agent.status);
-            let is_followed = follow.target.as_ref() == Some(&agent.agent_id);
+        let team = agent_team(&agent.agent_id).to_string();
+        teams.entry(team).or_default().push(agent);
+    }
 
-            let entry = commands.spawn((
-                Button,
+    // Spawn team headers and agent entries
+    for (team_name, team_agents) in &teams {
+        // Add team header if missing
+        if !existing_team_names.contains(team_name) {
+            commands.spawn((
                 Node {
-                    flex_direction: FlexDirection::Row,
-                    align_items: AlignItems::Center,
-                    margin: UiRect::bottom(Val::Px(4.0)),
-                    padding: UiRect::all(Val::Px(4.0)),
+                    margin: UiRect::new(Val::Px(0.0), Val::Px(0.0), Val::Px(6.0), Val::Px(2.0)),
                     ..default()
                 },
-                BackgroundColor(if is_followed {
-                    Color::srgba(0.2, 0.2, 0.4, 0.5)
-                } else {
-                    Color::srgba(0.1, 0.1, 0.15, 0.3)
-                }),
-                AgentRosterEntry {
-                    agent_id: agent.agent_id.clone(),
-                },
+                TeamRosterHeader { team_name: team_name.clone() },
                 ChildOf(panel_entity),
-            )).id();
+            )).with_children(|parent| {
+                parent.spawn((
+                    Text::new(format!("[{}]", team_name.to_uppercase())),
+                    TextFont { font_size: 10.0, ..default() },
+                    TextColor(Color::srgba(0.5, 0.7, 1.0, 0.8)),
+                ));
+            });
+        }
 
-            // Status dot
-            commands.spawn((
-                Node {
-                    width: Val::Px(8.0),
-                    height: Val::Px(8.0),
-                    margin: UiRect::right(Val::Px(6.0)),
-                    ..default()
-                },
-                BackgroundColor(status_color),
-                ChildOf(entry),
-            ));
+        for agent in team_agents {
+            if !existing_ids.contains(&agent.agent_id) {
+                let status_color = status_to_color(agent.status);
+                let is_followed = follow.target.as_ref() == Some(&agent.agent_id);
 
-            // Agent name + role
-            commands.spawn((
-                Text::new(format!("{} ({})", agent.name, agent.role)),
-                TextFont {
-                    font_size: 11.0,
-                    ..default()
-                },
-                TextColor(Color::srgba(0.85, 0.85, 0.95, 1.0)),
-                ChildOf(entry),
-            ));
+                let entry = commands.spawn((
+                    Button,
+                    Node {
+                        flex_direction: FlexDirection::Row,
+                        align_items: AlignItems::Center,
+                        margin: UiRect::bottom(Val::Px(3.0)),
+                        padding: UiRect::new(Val::Px(8.0), Val::Px(4.0), Val::Px(3.0), Val::Px(3.0)),
+                        ..default()
+                    },
+                    BackgroundColor(if is_followed {
+                        Color::srgba(0.2, 0.2, 0.4, 0.5)
+                    } else {
+                        Color::srgba(0.1, 0.1, 0.15, 0.3)
+                    }),
+                    AgentRosterEntry {
+                        agent_id: agent.agent_id.clone(),
+                    },
+                    ChildOf(panel_entity),
+                )).id();
+
+                // Status dot
+                commands.spawn((
+                    Node {
+                        width: Val::Px(8.0),
+                        height: Val::Px(8.0),
+                        margin: UiRect::right(Val::Px(6.0)),
+                        ..default()
+                    },
+                    BackgroundColor(status_color),
+                    ChildOf(entry),
+                ));
+
+                // Agent name + role
+                commands.spawn((
+                    Text::new(format!("{} ({})", agent.name, agent.role)),
+                    TextFont { font_size: 11.0, ..default() },
+                    TextColor(Color::srgba(0.85, 0.85, 0.95, 1.0)),
+                    ChildOf(entry),
+                ));
+            }
         }
     }
 
+    // Update existing entries (follow highlight, status color)
     for (entry_entity, roster_entry) in &existing_entries {
         if let Some(agent) = agents.iter().find(|a| a.agent_id == roster_entry.agent_id) {
             let is_followed = follow.target.as_ref() == Some(&agent.agent_id);
@@ -338,6 +382,14 @@ fn update_agent_roster(
 
         if !agent_ids.contains(&roster_entry.agent_id) {
             commands.entity(entry_entity).despawn();
+        }
+    }
+
+    // Remove team headers for teams with no agents
+    let active_teams: Vec<String> = teams.keys().cloned().collect();
+    for (header_entity, header) in &existing_headers {
+        if !active_teams.contains(&header.team_name) {
+            commands.entity(header_entity).despawn();
         }
     }
 }
@@ -474,14 +526,27 @@ fn update_minimap(
 ) {
     let Ok(panel_entity) = minimap_panel.single() else { return };
 
-    // World bounds for minimap scaling
-    let world_min_x = -240.0_f32;
-    let world_max_x = 1640.0_f32;
-    let world_min_y = -240.0_f32;
-    let world_max_y = 240.0_f32;
+    // Dynamic world bounds from actual room positions
+    let room_half = 240.0_f32;
+    let (world_min_x, world_max_x, world_min_y, world_max_y) = if room_index.positions.is_empty() {
+        (-240.0_f32, 1640.0_f32, -240.0_f32, 240.0_f32)
+    } else {
+        let mut min_x = f32::MAX;
+        let mut max_x = f32::MIN;
+        let mut min_y = f32::MAX;
+        let mut max_y = f32::MIN;
+        for pos in room_index.positions.values() {
+            min_x = min_x.min(pos.x - room_half);
+            max_x = max_x.max(pos.x + room_half);
+            min_y = min_y.min(pos.y - room_half);
+            max_y = max_y.max(pos.y + room_half);
+        }
+        // Add padding
+        (min_x - 50.0, max_x + 50.0, min_y - 50.0, max_y + 50.0)
+    };
 
-    let map_w = 192.0_f32;
-    let map_h = 52.0_f32;
+    let map_w = 272.0_f32;
+    let map_h = 62.0_f32;
 
     let to_minimap = |wx: f32, wy: f32| -> (f32, f32) {
         let nx = ((wx - world_min_x) / (world_max_x - world_min_x)).clamp(0.0, 1.0);
@@ -491,7 +556,6 @@ fn update_minimap(
 
     // Draw room outlines (once, when rooms appear)
     if existing_rooms.is_empty() && !room_index.positions.is_empty() {
-        let room_half = 240.0_f32; // rooms are 480x480
         for (_room_id, &room_pos) in &room_index.positions {
             let (left, top) = to_minimap(room_pos.x - room_half, room_pos.y + room_half);
             let (right, bottom) = to_minimap(room_pos.x + room_half, room_pos.y - room_half);
