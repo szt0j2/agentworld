@@ -56,11 +56,18 @@ fn handle_agent_events(
                     agent.sprite.color[3],
                 );
 
-                let agent_mesh = meshes.add(Rectangle::new(32.0, 32.0));
+                // Role-based shape: gives each role visual identity
+                let agent_mesh = match agent.role.as_str() {
+                    "researcher" | "explorer" => meshes.add(Circle::new(18.0)),
+                    "reviewer" | "tester" | "qa" => meshes.add(RegularPolygon::new(18.0, 6)), // hexagon
+                    "deployer" | "ops" | "devops" => meshes.add(RegularPolygon::new(18.0, 3)), // triangle
+                    "lead" | "conductor" | "orchestrator" => meshes.add(RegularPolygon::new(20.0, 5)), // pentagon (bigger)
+                    _ => meshes.add(Rectangle::new(32.0, 32.0)), // default: square (coders, general)
+                };
                 let mat = materials.add(ColorMaterial::from_color(color));
 
-                // Status ring (slightly larger, behind agent)
-                let ring_mesh = meshes.add(Rectangle::new(40.0, 40.0));
+                // Status ring — circle for all roles, slightly larger
+                let ring_mesh = meshes.add(Circle::new(22.0));
                 let ring_mat = materials.add(ColorMaterial::from_color(
                     Color::srgba(0.5, 0.5, 0.5, 0.3),
                 ));

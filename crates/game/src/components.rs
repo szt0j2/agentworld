@@ -116,6 +116,18 @@ pub struct MinimapDot {
 #[derive(Component)]
 pub struct MinimapPanel;
 
+/// Room outline in the minimap.
+#[derive(Component)]
+pub struct MinimapRoom;
+
+/// Ambient particle floating in a room.
+#[derive(Component)]
+pub struct AmbientParticle {
+    pub lifetime: f32,
+    pub max_lifetime: f32,
+    pub drift: Vec2,
+}
+
 /// Agent currently transitioning through a portal.
 #[derive(Component)]
 pub struct PortalTransition {

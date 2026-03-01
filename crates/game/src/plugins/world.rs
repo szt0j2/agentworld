@@ -1,6 +1,6 @@
 use agent_world_core::WorldEvent;
 use bevy::prelude::*;
-use crate::components::{GridCell, PortalSprite};
+use crate::components::{AmbientParticle, GridCell, PortalSprite};
 use crate::plugins::events::PendingEvents;
 use std::collections::HashMap;
 
@@ -29,7 +29,7 @@ impl Plugin for WorldPlugin {
         app.init_resource::<RoomIndex>()
             .init_resource::<PortalIndex>()
             .add_systems(Startup, setup_camera)
-            .add_systems(Update, (handle_room_events, animate_portals));
+            .add_systems(Update, (handle_room_events, animate_portals, emit_ambient_particles, animate_ambient_particles));
     }
 }
 
@@ -136,7 +136,7 @@ fn handle_room_events(
                 ));
             }
 
-            // Room name label
+            // Room name label (above room)
             commands.spawn((
                 Text2d::new(&room.name),
                 TextFont {
@@ -146,6 +146,43 @@ fn handle_room_events(
                 TextColor(Color::srgba(0.6, 0.6, 0.8, 0.6)),
                 Transform::from_xyz(room_x, room_y + border_offset + 16.0, 0.2),
             ));
+
+            // Room purpose label (inside room, faint)
+            let purpose_icon = match room.purpose.as_str() {
+                "workspace" => "{ }",
+                "review" => "< >",
+                "deploy" => ">>>",
+                _ => "...",
+            };
+            commands.spawn((
+                Text2d::new(purpose_icon),
+                TextFont {
+                    font_size: 48.0,
+                    ..default()
+                },
+                TextColor(Color::srgba(0.2, 0.2, 0.3, 0.15)),
+                Transform::from_xyz(room_x, room_y, 0.05),
+            ));
+
+            // Desk markers — subtle rectangles showing workstation areas
+            let desk_mesh = meshes.add(Rectangle::new(50.0, 4.0));
+            let desk_mat = materials.add(ColorMaterial::from_color(
+                Color::srgba(border_color.to_srgba().red, border_color.to_srgba().green, border_color.to_srgba().blue, 0.15),
+            ));
+            // Place 2-3 desks per room based on purpose
+            let desk_positions: Vec<(f32, f32)> = match room.purpose.as_str() {
+                "workspace" => vec![(-100.0, 80.0), (50.0, -60.0), (-60.0, -100.0)],
+                "review" => vec![(0.0, 50.0), (-80.0, -80.0), (80.0, -40.0)],
+                "deploy" => vec![(0.0, 0.0), (-60.0, 80.0)],
+                _ => vec![(0.0, 0.0)],
+            };
+            for (dx, dy) in desk_positions {
+                commands.spawn((
+                    Mesh2d(desk_mesh.clone()),
+                    MeshMaterial2d(desk_mat.clone()),
+                    Transform::from_xyz(room_x + dx, room_y + dy - 16.0, 0.08),
+                ));
+            }
 
             // Register room position
             room_index.positions.insert(room.id.clone(), Vec2::new(room_x, room_y));
@@ -210,6 +247,81 @@ fn animate_portals(
         if let Some(mat) = materials.get_mut(&mat_handle.0) {
             let alpha = 0.4 + (t * 1.5).sin().abs() * 0.3;
             mat.color = Color::srgba(0.4, 0.2, 0.9, alpha);
+        }
+    }
+}
+
+/// Periodically spawn ambient floating particles in rooms.
+fn emit_ambient_particles(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    room_index: Res<RoomIndex>,
+    time: Res<Time>,
+    mut timer: Local<f32>,
+    existing: Query<&AmbientParticle>,
+) {
+    *timer += time.delta_secs();
+    if *timer < 1.0 || room_index.positions.is_empty() {
+        return;
+    }
+    *timer = 0.0;
+
+    // Cap total particles
+    if existing.iter().count() > 30 {
+        return;
+    }
+
+    let t = time.elapsed_secs();
+    let dot_mesh = meshes.add(Circle::new(2.0));
+
+    for (_, &room_pos) in &room_index.positions {
+        // Spawn 1 particle per room per second, at random-ish position
+        let offset_x = ((t * 7.3).sin() * 200.0 + room_pos.x) % 200.0 - 100.0;
+        let offset_y = ((t * 5.1).cos() * 200.0 + room_pos.y) % 200.0 - 100.0;
+        let drift_x = (t * 3.7).sin() * 5.0;
+        let drift_y = 3.0 + (t * 2.1).cos().abs() * 4.0;
+
+        let dot_mat = materials.add(ColorMaterial::from_color(
+            Color::srgba(0.3, 0.3, 0.6, 0.08),
+        ));
+
+        commands.spawn((
+            Mesh2d(dot_mesh.clone()),
+            MeshMaterial2d(dot_mat),
+            Transform::from_xyz(room_pos.x + offset_x, room_pos.y + offset_y, 0.04),
+            AmbientParticle {
+                lifetime: 0.0,
+                max_lifetime: 6.0,
+                drift: Vec2::new(drift_x, drift_y),
+            },
+        ));
+    }
+}
+
+/// Animate and despawn ambient particles (slow upward drift + fade).
+fn animate_ambient_particles(
+    mut commands: Commands,
+    time: Res<Time>,
+    mut particles: Query<(Entity, &mut AmbientParticle, &mut Transform, &MeshMaterial2d<ColorMaterial>)>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    for (entity, mut particle, mut tf, mat_handle) in &mut particles {
+        particle.lifetime += time.delta_secs();
+        let frac = particle.lifetime / particle.max_lifetime;
+
+        // Drift upward
+        tf.translation.x += particle.drift.x * time.delta_secs();
+        tf.translation.y += particle.drift.y * time.delta_secs();
+
+        // Fade
+        if let Some(mat) = materials.get_mut(&mat_handle.0) {
+            let alpha = 0.08 * (1.0 - frac).max(0.0);
+            mat.color = Color::srgba(0.3, 0.3, 0.6, alpha);
+        }
+
+        if particle.lifetime >= particle.max_lifetime {
+            commands.entity(entity).despawn();
         }
     }
 }

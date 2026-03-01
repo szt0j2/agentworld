@@ -1,6 +1,7 @@
 use agent_world_core::AgentStatus;
 use bevy::prelude::*;
-use crate::components::{AgentSprite, MinimapDot, MinimapPanel};
+use crate::components::{AgentSprite, MinimapDot, MinimapPanel, MinimapRoom};
+use crate::plugins::world::RoomIndex;
 use crate::plugins::adapter::ConnectionStatus;
 use crate::plugins::camera::CameraFollow;
 
@@ -467,19 +468,51 @@ fn update_minimap(
     mut commands: Commands,
     agents: Query<(&AgentSprite, &Transform), Without<MinimapDot>>,
     existing_dots: Query<(Entity, &MinimapDot)>,
+    existing_rooms: Query<Entity, With<MinimapRoom>>,
     minimap_panel: Query<Entity, With<MinimapPanel>>,
+    room_index: Res<RoomIndex>,
 ) {
     let Ok(panel_entity) = minimap_panel.single() else { return };
 
     // World bounds for minimap scaling
-    // Rooms are at x≈0, x≈700, x≈1400, each 480x480
     let world_min_x = -240.0_f32;
     let world_max_x = 1640.0_f32;
     let world_min_y = -240.0_f32;
     let world_max_y = 240.0_f32;
 
-    let map_w = 192.0_f32; // minimap pixel width (200 - 8 padding)
-    let map_h = 52.0_f32;  // minimap pixel height
+    let map_w = 192.0_f32;
+    let map_h = 52.0_f32;
+
+    let to_minimap = |wx: f32, wy: f32| -> (f32, f32) {
+        let nx = ((wx - world_min_x) / (world_max_x - world_min_x)).clamp(0.0, 1.0);
+        let ny = ((wy - world_min_y) / (world_max_y - world_min_y)).clamp(0.0, 1.0);
+        (nx * map_w, (1.0 - ny) * map_h)
+    };
+
+    // Draw room outlines (once, when rooms appear)
+    if existing_rooms.is_empty() && !room_index.positions.is_empty() {
+        let room_half = 240.0_f32; // rooms are 480x480
+        for (_room_id, &room_pos) in &room_index.positions {
+            let (left, top) = to_minimap(room_pos.x - room_half, room_pos.y + room_half);
+            let (right, bottom) = to_minimap(room_pos.x + room_half, room_pos.y - room_half);
+            let w = (right - left).max(2.0);
+            let h = (bottom - top).max(2.0);
+
+            commands.spawn((
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(left),
+                    top: Val::Px(top),
+                    width: Val::Px(w),
+                    height: Val::Px(h),
+                    ..default()
+                },
+                BackgroundColor(Color::srgba(0.15, 0.15, 0.25, 0.4)),
+                MinimapRoom,
+                ChildOf(panel_entity),
+            ));
+        }
+    }
 
     // Remove dots for agents that no longer exist
     let agent_ids: Vec<String> = agents.iter().map(|(a, _)| a.agent_id.clone()).collect();
@@ -492,23 +525,16 @@ fn update_minimap(
     let existing_ids: Vec<String> = existing_dots.iter().map(|(_, d)| d.agent_id.clone()).collect();
 
     for (agent, transform) in &agents {
-        // Map world position to minimap position
-        let nx = ((transform.translation.x - world_min_x) / (world_max_x - world_min_x)).clamp(0.0, 1.0);
-        let ny = ((transform.translation.y - world_min_y) / (world_max_y - world_min_y)).clamp(0.0, 1.0);
-
-        let dot_x = nx * map_w;
-        let dot_y = (1.0 - ny) * map_h; // flip Y for screen coords
-
+        let (dot_x, dot_y) = to_minimap(transform.translation.x, transform.translation.y);
         let color = status_to_color(agent.status);
 
         if existing_ids.contains(&agent.agent_id) {
-            // Update existing dot position
             for (dot_entity, dot) in &existing_dots {
                 if dot.agent_id == agent.agent_id {
                     commands.entity(dot_entity).insert(Node {
                         position_type: PositionType::Absolute,
-                        left: Val::Px(dot_x),
-                        top: Val::Px(dot_y),
+                        left: Val::Px(dot_x - 3.0),
+                        top: Val::Px(dot_y - 3.0),
                         width: Val::Px(6.0),
                         height: Val::Px(6.0),
                         ..default()
@@ -517,12 +543,11 @@ fn update_minimap(
                 }
             }
         } else {
-            // Spawn new dot
             commands.spawn((
                 Node {
                     position_type: PositionType::Absolute,
-                    left: Val::Px(dot_x),
-                    top: Val::Px(dot_y),
+                    left: Val::Px(dot_x - 3.0),
+                    top: Val::Px(dot_y - 3.0),
                     width: Val::Px(6.0),
                     height: Val::Px(6.0),
                     ..default()
@@ -535,9 +560,6 @@ fn update_minimap(
             ));
         }
     }
-
-    // Draw room outlines as faint rectangles (only once, when rooms exist)
-    // This is handled implicitly — the dark background + dots give enough context
 }
 
 fn status_to_color(status: AgentStatus) -> Color {
