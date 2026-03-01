@@ -98,15 +98,33 @@ function nextColor(): number[] {
   return c;
 }
 
-// Room purposes/colors by convention
+// Room purposes — must match game's world.rs theme matching ("workspace", "review", "deploy")
 const ROOM_THEMES: Record<string, { purpose: string }> = {
-  "main":      { purpose: "Main workspace" },
-  "research":  { purpose: "Research and analysis" },
-  "coding":    { purpose: "Code development" },
-  "review":    { purpose: "Code review" },
-  "testing":   { purpose: "Testing and QA" },
-  "deploy":    { purpose: "Deployment" },
+  "main":      { purpose: "workspace" },
+  "research":  { purpose: "workspace" },
+  "coding":    { purpose: "workspace" },
+  "review":    { purpose: "review" },
+  "testing":   { purpose: "review" },
+  "deploy":    { purpose: "deploy" },
 };
+
+// Normalize Claude Code subagent_type to game role for shape matching
+function normalizeRole(subagentType: string): string {
+  switch (subagentType.toLowerCase()) {
+    case "explore":
+    case "research":
+      return "researcher";
+    case "plan":
+      return "reviewer";
+    case "general-purpose":
+      return "coder";
+    case "test-runner":
+    case "build-validator":
+      return "tester";
+    default:
+      return subagentType.toLowerCase();
+  }
+}
 
 // ─── Event translation ───
 
@@ -205,7 +223,7 @@ function translateEvent(row: {
         const pos = agentPosition(teamName);
         const color = nextColor();
 
-        const role = toolInput.subagent_type || "agent";
+        const role = normalizeRole(toolInput.subagent_type || "agent");
         agents.set(agentId, {
           name: agentName,
           role,
@@ -271,7 +289,9 @@ function translateEvent(row: {
         events.push(...ensureRoom(teamName));
         const pos = agentPosition(teamName);
         const color = nextColor();
-        const autoRole = row.agent_type || "agent";
+        const autoRole = row.agent_type
+          ? normalizeRole(row.agent_type)
+          : (agentName === "lead" ? "lead" : "coder");
         agents.set(agentId, { name: agentName, role: autoRole, room: teamName, pos, status: "Idle", color });
 
         events.push({
@@ -553,17 +573,29 @@ const server = Bun.serve({
       console.log(`Client connected (${clients.size} total)`);
 
       // Send current room/agent state to new client
-      for (const [roomId, room] of rooms) {
-        const roomEvent = ensureRoom(roomId);
-        // Room already exists, send a fresh RoomCreate
+      const roomIds = [...rooms.keys()];
+      for (const roomId of roomIds) {
+        // Build portals to other rooms
+        const portals: Room["portals"] = [];
+        for (const otherId of roomIds) {
+          if (otherId === roomId) continue;
+          const otherRoom = rooms.get(otherId)!;
+          portals.push({
+            id: `p-${roomId}-${otherId}`,
+            target_room: prettifyName(otherId),
+            position: { x: -ROOM_WIDTH / 2 + 30, y: portals.length * 60 - 30 },
+            target_position: { x: ROOM_WIDTH / 2 - 30, y: 0 },
+          });
+        }
+
         ws.send(JSON.stringify({
           RoomCreate: {
             id: roomId,
             name: prettifyName(roomId),
             width: ROOM_WIDTH,
             height: ROOM_HEIGHT,
-            purpose: ROOM_THEMES[roomId]?.purpose || roomId,
-            portals: [],
+            purpose: ROOM_THEMES[roomId]?.purpose || "workspace",
+            portals,
           },
         }));
       }
