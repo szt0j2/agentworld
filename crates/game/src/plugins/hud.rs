@@ -229,6 +229,7 @@ Esc    Stop following\n\
 Scroll Zoom in/out\n\
 MMB    Pan camera\n\
 H      Toggle help\n\
+M      Toggle sound\n\
 \n\
 Click roster to inspect";
 
