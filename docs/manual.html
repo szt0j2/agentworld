@@ -1,0 +1,1334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AgentWorld V1 — User &amp; Technical Manual</title>
+<style>
+:root {
+  --bg: #141423;
+  --bg-surface: #1a1a2e;
+  --bg-elevated: #22223a;
+  --bg-code: #0d0d1a;
+  --text: #c0c0d8;
+  --text-dim: #8888a0;
+  --text-bright: #e0e0f0;
+  --accent: #6c8cff;
+  --accent-dim: #4a6acc;
+  --green: #5cdb5c;
+  --coral: #ff7070;
+  --gold: #ffd866;
+  --purple: #b48eff;
+  --cyan: #66d9ef;
+  --orange: #ff9944;
+  --border: #2a2a44;
+  --sidebar-w: 260px;
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 20px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', monospace;
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* Sidebar TOC */
+nav.toc {
+  position: fixed;
+  top: 0; left: 0;
+  width: var(--sidebar-w);
+  height: 100vh;
+  overflow-y: auto;
+  background: var(--bg-surface);
+  border-right: 1px solid var(--border);
+  padding: 16px 0;
+  z-index: 100;
+}
+nav.toc::-webkit-scrollbar { width: 4px; }
+nav.toc::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+nav.toc .toc-title {
+  padding: 0 16px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+nav.toc .toc-part {
+  padding: 8px 16px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+}
+nav.toc a {
+  display: block;
+  padding: 3px 16px 3px 24px;
+  color: var(--text-dim);
+  text-decoration: none;
+  font-size: 12px;
+  transition: color 0.15s, background 0.15s;
+  border-left: 2px solid transparent;
+}
+nav.toc a:hover {
+  color: var(--text-bright);
+  background: var(--bg-elevated);
+  border-left-color: var(--accent);
+}
+
+/* Main content */
+main {
+  margin-left: var(--sidebar-w);
+  max-width: 900px;
+  padding: 40px 48px 120px;
+}
+
+/* Hero section */
+.hero {
+  text-align: center;
+  padding: 60px 0 40px;
+}
+.hero h1 {
+  font-size: 36px;
+  color: var(--text-bright);
+  margin-bottom: 8px;
+  letter-spacing: -0.5px;
+}
+.hero .tagline {
+  font-size: 16px;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+.hero .subtitle {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-bottom: 32px;
+}
+.hero img {
+  width: 100%;
+  max-width: 800px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+/* Headings */
+h2 {
+  font-size: 22px;
+  color: var(--text-bright);
+  margin: 56px 0 16px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border);
+}
+h2 .part-label {
+  font-size: 10px;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  display: block;
+  margin-bottom: 4px;
+}
+h3 {
+  font-size: 16px;
+  color: var(--accent);
+  margin: 32px 0 12px;
+}
+h4 {
+  font-size: 14px;
+  color: var(--gold);
+  margin: 20px 0 8px;
+}
+
+p { margin: 0 0 12px; }
+
+/* Images */
+figure {
+  margin: 20px 0;
+}
+figure img {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+figure img:hover { transform: scale(1.01); }
+figcaption {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 6px;
+  font-style: italic;
+}
+
+/* Lightbox */
+.lightbox {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(10, 10, 20, 0.92);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+.lightbox.active { display: flex; }
+.lightbox img {
+  max-width: 95vw;
+  max-height: 95vh;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+/* Code blocks */
+pre {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 16px;
+  overflow-x: auto;
+  margin: 12px 0 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+code {
+  font-family: inherit;
+  color: var(--cyan);
+}
+pre code { color: var(--text); }
+.kw { color: var(--purple); }
+.ty { color: var(--gold); }
+.str { color: var(--green); }
+.cmt { color: var(--text-dim); }
+.fn { color: var(--accent); }
+
+/* Inline code */
+p code, li code, td code {
+  background: var(--bg-elevated);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 12px 0 16px;
+  font-size: 13px;
+}
+th {
+  text-align: left;
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  color: var(--accent);
+  border-bottom: 1px solid var(--border);
+  font-weight: 600;
+}
+td {
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border);
+}
+tr:hover td { background: rgba(108, 140, 255, 0.04); }
+
+/* Lists */
+ul, ol {
+  margin: 8px 0 16px 24px;
+}
+li { margin: 4px 0; }
+li::marker { color: var(--accent); }
+
+/* Callout boxes */
+.callout {
+  border-left: 3px solid var(--accent);
+  background: var(--bg-elevated);
+  padding: 12px 16px;
+  border-radius: 0 6px 6px 0;
+  margin: 16px 0;
+}
+.callout.warn { border-left-color: var(--gold); }
+.callout.tip { border-left-color: var(--green); }
+.callout .label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin-bottom: 4px;
+}
+.callout.warn .label { color: var(--gold); }
+.callout.tip .label { color: var(--green); }
+
+/* Diagram boxes */
+.diagram {
+  background: var(--bg-code);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 20px;
+  margin: 16px 0;
+  font-size: 13px;
+  line-height: 1.4;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+/* Two-column layout */
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 16px 0;
+}
+.two-col figure { margin: 0; }
+
+/* Responsive */
+@media (max-width: 1000px) {
+  nav.toc { display: none; }
+  main { margin-left: 0; padding: 24px; }
+}
+@media (max-width: 600px) {
+  .two-col { grid-template-columns: 1fr; }
+  .hero h1 { font-size: 24px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Table of Contents Sidebar -->
+<nav class="toc">
+  <div class="toc-title">AgentWorld V1</div>
+  <div class="toc-part">Part 1 — User Guide</div>
+  <a href="#quickstart">Quick Start</a>
+  <a href="#ui-overview">UI Overview</a>
+  <a href="#agent-roster">Agent Roster</a>
+  <a href="#event-log">Event Log</a>
+  <a href="#inspector">Inspector Panel</a>
+  <a href="#agents-sprites">Agents &amp; Sprites</a>
+  <a href="#rooms-themes">Rooms &amp; Themes</a>
+  <a href="#portals">Portals</a>
+  <a href="#communication">Communication</a>
+  <a href="#artifacts">Artifacts &amp; Inventory</a>
+  <a href="#minimap">Minimap</a>
+  <a href="#sound">Sound</a>
+  <a href="#controls">Controls Reference</a>
+  <a href="#demo-mode">Demo Mode</a>
+  <a href="#live-mode">Live Mode</a>
+  <a href="#multi-team">Multi-Team</a>
+  <div class="toc-part">Part 2 — Technical Docs</div>
+  <a href="#architecture">Architecture Overview</a>
+  <a href="#core-crate">Core Crate</a>
+  <a href="#game-crate">Game Crate (Bevy)</a>
+  <a href="#bridge-server">Bridge Server</a>
+  <a href="#frontend">Frontend (React Shell)</a>
+  <a href="#build-system">Build System</a>
+  <a href="#service-mgmt">Service Management</a>
+  <a href="#event-pipeline">Event Pipeline</a>
+  <a href="#worldevent-ref">WorldEvent Reference</a>
+  <a href="#configuration">Configuration</a>
+  <a href="#dev-history">Development History</a>
+</nav>
+
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="this.classList.remove('active')">
+  <img id="lightbox-img" src="" alt="">
+</div>
+
+<!-- Main Content -->
+<main>
+
+<!-- ===== HERO ===== -->
+<section class="hero" id="hero">
+  <h1>AgentWorld V1</h1>
+  <div class="tagline">Watch your AI agents work — as a living, spatial world</div>
+  <div class="subtitle">Provider-agnostic, event-sourced visualization for multi-agent systems</div>
+  <figure>
+    <img src="images/hero.png" alt="AgentWorld hero — multiple rooms with agents, portals, and message arcs" onclick="openLightbox(this)">
+  </figure>
+</section>
+
+<p>AgentWorld renders AI agent orchestration as a real-time 2D world. Agents appear as pixel art characters moving between themed rooms, communicating via visible message arcs, invoking tools with visual effects, and traveling through portals. It works with any orchestration framework — Claude Code, n8n, custom systems — by reading from standard event streams.</p>
+
+<p>This manual covers everything in AgentWorld V1: how to use it (Part 1) and how it works internally (Part 2).</p>
+
+
+<!-- ===== PART 1: USER GUIDE ===== -->
+
+<!-- Quick Start -->
+<h2 id="quickstart"><span class="part-label">Part 1 — User Guide</span>Quick Start</h2>
+
+<h3>Prerequisites</h3>
+<ul>
+  <li>Rust 1.89 with <code>wasm32-unknown-unknown</code> target</li>
+  <li><code>trunk</code> (WASM build tool): <code>cargo install trunk</code></li>
+  <li>Bun runtime (for bridge server and frontend build)</li>
+</ul>
+
+<h3>Demo Mode (no setup needed)</h3>
+<pre><code>cd ~/projects/agent-world
+./bin/start.sh
+<span class="cmt"># Opens http://localhost:8080</span>
+<span class="cmt"># Watch 5 agents perform a 16-step development story</span></code></pre>
+
+<h3>Live Mode (real agent data)</h3>
+<pre><code>cd ~/projects/agent-world
+./bin/start.sh --live
+<span class="cmt"># Opens http://localhost:8080/?ws=ws://localhost:9090/ws</span>
+<span class="cmt"># Bridge reads from observability SQLite DB</span>
+<span class="cmt"># Agents appear as real Claude Code teams work</span></code></pre>
+
+<h3>Stopping</h3>
+<pre><code>./bin/stop.sh
+<span class="cmt"># Kills trunk, bridge, and any stray Playwright Chrome instances</span></code></pre>
+
+<div class="callout tip">
+  <div class="label">Tip</div>
+  If managed via the lab's Telegram bot, use <code>/services</code> to start/stop AgentWorld without touching the terminal.
+</div>
+
+
+<!-- UI Overview -->
+<h2 id="ui-overview">UI Overview</h2>
+
+<p>The interface is a dual-layer system: Bevy renders the spatial world (agents, rooms, portals, effects) while a Preact HUD overlays text-heavy panels (roster, event log, inspector, status bar).</p>
+
+<figure>
+  <img src="images/agentworld-hud-2.png" alt="Full HUD with agent roster, event log, and artifacts" onclick="openLightbox(this)">
+  <figcaption>Full interface: agent roster (left), event log (bottom-right), and the spatial world (center). The minimap sits at bottom-center.</figcaption>
+</figure>
+
+<p>The four HUD panels are:</p>
+<ul>
+  <li><strong>Agent Roster</strong> (top-left) — List of all agents grouped by team, with status dots</li>
+  <li><strong>Event Log</strong> (bottom-right) — Scrolling, color-coded event stream</li>
+  <li><strong>Inspector Panel</strong> (right side) — Detailed view of selected agent</li>
+  <li><strong>Status Bar</strong> (top-right) — Connection state and agent count</li>
+</ul>
+
+<figure>
+  <img src="images/agentworld-inventory.png" alt="Inspector panel showing agent details and inventory" onclick="openLightbox(this)">
+  <figcaption>Inspector panel: agent status, room, health/energy bars, equipped tools, current thought, and artifact inventory with quality indicators.</figcaption>
+</figure>
+
+
+<!-- Agent Roster -->
+<h2 id="agent-roster">Agent Roster</h2>
+
+<p>The roster lists every agent in the world, grouped under team headers. Each entry shows:</p>
+<ul>
+  <li><strong>Status dot</strong> — color-coded: green (Idle), blue pulsing (Thinking), gold (Acting), gray (Waiting), red (Error)</li>
+  <li><strong>Agent name</strong> — click to select, inspect, and follow with camera</li>
+  <li><strong>Role badge</strong> — researcher, coder, reviewer, tester, deployer, planner</li>
+</ul>
+
+<figure>
+  <img src="images/agentworld-sprites.png" alt="Five agents with pixel art sprites and thought bubbles" onclick="openLightbox(this)">
+  <figcaption>Agents rendered with role-specific pixel art sprites. Each role has a distinct color and design, making them instantly recognizable.</figcaption>
+</figure>
+
+<figure>
+  <img src="images/agentworld-demo-multiteam.png" alt="Roster grouped by team headers" onclick="openLightbox(this)">
+  <figcaption>Multi-team roster: agents grouped under [TEAM] headers. Each team gets a distinct color palette.</figcaption>
+</figure>
+
+
+<!-- Event Log -->
+<h2 id="event-log">Event Log</h2>
+
+<p>The event log displays a scrolling stream of everything happening in the world — agent spawns, tool uses, messages, portal transitions, and errors. It holds up to 200 entries and auto-scrolls to the latest.</p>
+
+<p>Events are color-coded by type:</p>
+<table>
+  <tr><th>Color</th><th>Event Type</th></tr>
+  <tr><td style="color: var(--green)">Green</td><td>Agent spawn</td></tr>
+  <tr><td style="color: var(--coral)">Red</td><td>Agent despawn, errors</td></tr>
+  <tr><td style="color: var(--accent)">Blue</td><td>Status changes</td></tr>
+  <tr><td style="color: var(--gold)">Gold</td><td>Tool use / tool results</td></tr>
+  <tr><td style="color: var(--purple)">Purple</td><td>Messages</td></tr>
+  <tr><td style="color: var(--orange)">Orange</td><td>Portal transitions</td></tr>
+  <tr><td style="color: var(--cyan)">Cyan</td><td>Room enter/exit</td></tr>
+</table>
+
+<figure>
+  <img src="images/agentworld-react-shell.png" alt="React HUD overlay showing event log and roster" onclick="openLightbox(this)">
+  <figcaption>The React HUD shell overlaid on the Bevy canvas. Event log at bottom-right with color-coded entries and timestamps.</figcaption>
+</figure>
+
+
+<!-- Inspector Panel -->
+<h2 id="inspector">Inspector Panel</h2>
+
+<p>Click any agent in the roster (or press 1-9) to open the inspector. It shows:</p>
+<ul>
+  <li><strong>Identity</strong> — Name, role, current status</li>
+  <li><strong>Location</strong> — Current room</li>
+  <li><strong>Health &amp; Energy</strong> — Visual bars (0-100)</li>
+  <li><strong>Equipped Tools</strong> — List of tool names</li>
+  <li><strong>Current Thought</strong> — What the agent is thinking (shown as bubble in-world too)</li>
+  <li><strong>Inventory</strong> — Artifacts held, with kind icons and quality bars</li>
+</ul>
+
+<p>Artifact kinds are displayed with icons:</p>
+<table>
+  <tr><th>Kind</th><th>Icon</th><th>Color</th></tr>
+  <tr><td>Document</td><td>&#x1F4C4;</td><td>Blue</td></tr>
+  <tr><td>Code</td><td>&#x1F4DD;</td><td>Green</td></tr>
+  <tr><td>Data</td><td>&#x1F4CA;</td><td>Gold</td></tr>
+  <tr><td>Image</td><td>&#x1F5BC;</td><td>Purple</td></tr>
+  <tr><td>Plan</td><td>&#x1F4CB;</td><td>Cyan</td></tr>
+  <tr><td>MessageBundle</td><td>&#x1F4AC;</td><td>Orange</td></tr>
+</table>
+
+<figure>
+  <img src="images/agentworld-react-inspector.png" alt="React inspector with full agent details" onclick="openLightbox(this)">
+  <figcaption>Inspector panel showing a selected agent's complete state: status, room, tools, thought, and inventory grid.</figcaption>
+</figure>
+
+
+<!-- Agents & Sprites -->
+<h2 id="agents-sprites">Agents &amp; Sprites</h2>
+
+<p>Every agent is rendered as a pixel art character. Sprites are generated at runtime from constant RGBA arrays — no image files. Each of the 7 roles has a unique design:</p>
+
+<table>
+  <tr><th>Role</th><th>Color</th><th>Design</th></tr>
+  <tr><td>Researcher</td><td style="color: #6495ED">Blue</td><td>Scholar with book</td></tr>
+  <tr><td>Coder</td><td style="color: #5cdb5c">Green</td><td>Developer with terminal</td></tr>
+  <tr><td>Reviewer</td><td style="color: #ff7070">Coral</td><td>Critic with magnifying glass</td></tr>
+  <tr><td>Tester</td><td style="color: #ff69b4">Pink</td><td>Tester with checklist</td></tr>
+  <tr><td>Deployer</td><td style="color: #b48eff">Purple</td><td>Operator with rocket</td></tr>
+  <tr><td>Planner</td><td style="color: #ffd866">Gold</td><td>Architect with blueprint</td></tr>
+  <tr><td>Default</td><td style="color: #c0c0d8">Gray</td><td>Generic agent</td></tr>
+</table>
+
+<h3>Status Animations</h3>
+<p>Agent status is communicated through visual effects around the sprite:</p>
+<ul>
+  <li><strong>Idle</strong> — Gentle bob (subtle up/down float)</li>
+  <li><strong>Thinking</strong> — Orbiting particles (blue dots circle the agent)</li>
+  <li><strong>Acting</strong> — Pulsing glow (gold ring expands/contracts)</li>
+  <li><strong>Waiting</strong> — Dimmed opacity</li>
+  <li><strong>Error</strong> — Red flash + shake</li>
+</ul>
+
+<figure>
+  <img src="images/agentworld-sprite-animations.png" alt="Agents with status animations — bobble, orbit effects" onclick="openLightbox(this)">
+  <figcaption>Status animations in action: orbiting particles for thinking agents, status rings showing current activity.</figcaption>
+</figure>
+
+
+<!-- Rooms & Themes -->
+<h2 id="rooms-themes">Rooms &amp; Themes</h2>
+
+<p>Rooms are spatial containers where agents work. Each room is a grid of tiles with themed floor colors, corner decorations, and ambient particles. Three room themes ship with V1:</p>
+
+<table>
+  <tr><th>Theme</th><th>Purpose</th><th>Floor Color</th><th>Ambiance</th></tr>
+  <tr><td>Workspace</td><td>Development, research, coding</td><td style="color: #4466aa">Blue</td><td>Soft floating particles</td></tr>
+  <tr><td>Review</td><td>Code review, testing</td><td style="color: #664488">Purple</td><td>Subtle shimmer</td></tr>
+  <tr><td>Deploy</td><td>Deployment, release</td><td style="color: #448844">Green</td><td>Rising sparks</td></tr>
+</table>
+
+<div class="two-col">
+  <figure>
+    <img src="images/agentworld-room-themes.png" alt="Room decorations and corner accents" onclick="openLightbox(this)">
+    <figcaption>Room themes: corner decorations and ambient particle effects distinguish each space.</figcaption>
+  </figure>
+  <figure>
+    <img src="images/agentworld-rooms-final.png" alt="Agents in workspace with artifacts" onclick="openLightbox(this)">
+    <figcaption>Researcher and Coder in the workspace room, with artifacts visible on the floor.</figcaption>
+  </figure>
+</div>
+
+<p>Rooms are connected by portals (glowing archways at room edges). Team labels float above each team's room cluster.</p>
+
+
+<!-- Portals -->
+<h2 id="portals">Portals</h2>
+
+<p>Portals are the inter-room transport system. When an agent needs to move between rooms (triggered by <code>RoomEnter</code>/<code>RoomExit</code> events), they undergo a 3-phase portal animation:</p>
+
+<ol>
+  <li><strong>Approach</strong> — Agent walks toward the portal at normal speed</li>
+  <li><strong>Warp Out</strong> — Agent shrinks and fades with a particle burst at the source portal</li>
+  <li><strong>Warp In</strong> — Agent materializes at the destination portal with an expanding particle ring</li>
+</ol>
+
+<figure>
+  <img src="images/agentworld-portal-particles.png" alt="Portal transition with particle effects" onclick="openLightbox(this)">
+  <figcaption>Portal warp: particle burst during the transition phase. The portal archway glows as the agent passes through.</figcaption>
+</figure>
+
+<figure>
+  <img src="images/agentworld-portals-3.png" alt="Portal area with thought bubbles and agent proximity" onclick="openLightbox(this)">
+  <figcaption>Agents near portal entrances with thought bubbles. Portals connect rooms within the same team.</figcaption>
+</figure>
+
+<p>Portals emit a continuous particle glow even when not in use, giving rooms a living feel. A procedural sound effect (sawtooth sweep) plays during each warp.</p>
+
+
+<!-- Communication -->
+<h2 id="communication">Communication</h2>
+
+<p>When agents send messages, the communication is visualized spatially:</p>
+<ul>
+  <li><strong>Message arcs</strong> — Projectiles that arc from sender to receiver, with the message preview visible mid-flight</li>
+  <li><strong>Connection lines</strong> — Temporary lines drawn between communicating agents, fading over time</li>
+  <li><strong>Broadcast ripples</strong> — When a message targets multiple agents, ripple effects emanate outward</li>
+</ul>
+
+<p>Message channels have distinct visual styles:</p>
+<table>
+  <tr><th>Channel</th><th>Style</th></tr>
+  <tr><td>Direct</td><td>Single projectile arc</td></tr>
+  <tr><td>Broadcast</td><td>Ripple + multiple arcs</td></tr>
+  <tr><td>ToolCall</td><td>Beam (straight line)</td></tr>
+  <tr><td>ToolResult</td><td>Return beam</td></tr>
+  <tr><td>Human</td><td>Scroll (floating text)</td></tr>
+</table>
+
+
+<!-- Artifacts & Inventory -->
+<h2 id="artifacts">Artifacts &amp; Inventory</h2>
+
+<p>Artifacts are the visible work products of agents — documents, code files, data sets, plans. They exist as objects in the world that agents can pick up, carry, drop, and transfer to each other.</p>
+
+<ul>
+  <li><strong>Quality bar</strong> — Each artifact has a 0-100% quality indicator, visualized as a colored bar</li>
+  <li><strong>Kind icons</strong> — Document, Code, Data, Image, Plan, MessageBundle — each with a distinct icon</li>
+  <li><strong>Following</strong> — When carried by an agent, artifacts float behind them</li>
+  <li><strong>Glow pulse</strong> — Artifacts pulse gently when their quality changes</li>
+</ul>
+
+<p>Transfers between agents are animated — the artifact visually flies from one agent to another. The event log records every pick-up, drop, and transfer.</p>
+
+
+<!-- Minimap -->
+<h2 id="minimap">Minimap</h2>
+
+<p>The minimap sits at bottom-center of the screen, showing a bird's-eye view of the entire world:</p>
+<ul>
+  <li><strong>Room outlines</strong> — Proportionally positioned rectangles for each room</li>
+  <li><strong>Agent dots</strong> — Colored dots matching each agent's role color</li>
+  <li><strong>Portal glow</strong> — Subtle glow marks portal locations</li>
+  <li><strong>Connection lines</strong> — Active communication lines visible at minimap scale</li>
+</ul>
+
+<figure>
+  <img src="images/agentworld-minimap.png" alt="Minimap showing rooms, agent dots, and connections" onclick="openLightbox(this)">
+  <figcaption>Minimap overlay: room outlines with agent dots at proportional positions. Useful for navigating large multi-team worlds.</figcaption>
+</figure>
+
+
+<!-- Sound -->
+<h2 id="sound">Sound</h2>
+
+<p>All audio is procedurally synthesized using the Web Audio API — no audio files. Eight sound types correspond to key events:</p>
+
+<table>
+  <tr><th>Sound</th><th>Event</th><th>Synthesis</th></tr>
+  <tr><td>Spawn</td><td>Agent appears</td><td>Rising chime (sine sweep up)</td></tr>
+  <tr><td>Despawn</td><td>Agent leaves</td><td>Falling tone (sine sweep down)</td></tr>
+  <tr><td>Portal</td><td>Room transition</td><td>Sawtooth sweep</td></tr>
+  <tr><td>ToolUse</td><td>Tool invoked</td><td>Up-down frequency ramp</td></tr>
+  <tr><td>ToolOk</td><td>Tool succeeded</td><td>Clean high chime</td></tr>
+  <tr><td>ToolFail</td><td>Tool failed</td><td>Low buzzer</td></tr>
+  <tr><td>Message</td><td>Message sent</td><td>Short ping</td></tr>
+  <tr><td>Error</td><td>Agent error</td><td>Alarm tone</td></tr>
+</table>
+
+<figure>
+  <img src="images/agentworld-with-sound.png" alt="AgentWorld with sound system active" onclick="openLightbox(this)">
+  <figcaption>Sound system active (pre-React HUD era). Press M to mute/unmute. Audio initializes on first user interaction to respect Chrome's autoplay policy.</figcaption>
+</figure>
+
+<div class="callout">
+  <div class="label">Note</div>
+  Sound auto-initializes on your first click or keypress. This is required by Chrome's autoplay policy — the AudioContext cannot start without user interaction.
+</div>
+
+
+<!-- Controls Reference -->
+<h2 id="controls">Controls Reference</h2>
+
+<table>
+  <tr><th>Input</th><th>Action</th></tr>
+  <tr><td><code>Scroll wheel</code></td><td>Zoom in/out</td></tr>
+  <tr><td><code>Middle mouse drag</code></td><td>Pan camera</td></tr>
+  <tr><td><code>1</code> - <code>9</code></td><td>Follow agent by index (camera locks to agent)</td></tr>
+  <tr><td><code>H</code></td><td>Toggle help overlay</td></tr>
+  <tr><td><code>M</code></td><td>Toggle sound mute</td></tr>
+  <tr><td><code>Click roster entry</code></td><td>Select agent — inspect + follow with camera</td></tr>
+</table>
+
+
+<!-- Demo Mode -->
+<h2 id="demo-mode">Demo Mode</h2>
+
+<p>Demo mode runs a self-contained 16-step narrative showcasing all of AgentWorld's features. No external connections needed — just start and watch.</p>
+
+<h3>What You'll See</h3>
+<p>Five agents (Researcher, Coder, Reviewer, Tester, Deployer) work across three themed rooms:</p>
+<ol>
+  <li>Researcher develops a spec document in the Workspace</li>
+  <li>Researcher sends the spec to Coder (message arc)</li>
+  <li>Coder implements, creates main.rs artifact</li>
+  <li>Coder warps through portal to Review room (3-phase animation)</li>
+  <li>Reviewer examines code, finds an issue</li>
+  <li>Code goes back to Coder for fixes</li>
+  <li>Fixed code returns to Review, gets approved</li>
+  <li>Code warps to Deploy room</li>
+  <li>Tester validates, Deployer releases</li>
+  <li>Cycle repeats with evolving artifact quality</li>
+</ol>
+
+<figure>
+  <img src="images/agentworld-polished-demo.png" alt="Demo mode with 3 agents and early HUD" onclick="openLightbox(this)">
+  <figcaption>Demo mode running the development narrative. Agents move between rooms, exchange artifacts, and communicate via visible message arcs.</figcaption>
+</figure>
+
+
+<!-- Live Mode -->
+<h2 id="live-mode">Live Mode</h2>
+
+<p>Live mode connects to real agent orchestration data through the bridge server. As Claude Code teams (or any system writing to the event database) work, their agents appear and act in real-time.</p>
+
+<h3>Connection Flow</h3>
+<ol>
+  <li>Bridge server polls SQLite database for new events</li>
+  <li>Events are translated into WorldEvent JSON</li>
+  <li>Sent over WebSocket to the Bevy game client</li>
+  <li>Agents spawn, move, use tools, and communicate — all driven by real data</li>
+</ol>
+
+<div class="two-col">
+  <figure>
+    <img src="images/agentworld-live-connected.png" alt="Live mode with single agent and green connected dot" onclick="openLightbox(this)">
+    <figcaption>Live mode connected: green dot indicates active WebSocket connection. One agent visible from a running team.</figcaption>
+  </figure>
+  <figure>
+    <img src="images/agentworld-live-multiteam.png" alt="Live mode with multiple agents across teams" onclick="openLightbox(this)">
+    <figcaption>Live mode with multiple teams: agents clustered by team, each with distinct color palettes.</figcaption>
+  </figure>
+</div>
+
+<figure>
+  <img src="images/agentworld-live-team-room.png" alt="Live mode with thought bubbles and event activity" onclick="openLightbox(this)">
+  <figcaption>Live agent with active thought bubble and event stream. Real tool invocations and status changes appear as they happen.</figcaption>
+</figure>
+
+<div class="callout">
+  <div class="label">Connection Status</div>
+  The status dot in the top-right corner shows: <span style="color: var(--green)">green</span> = connected, <span style="color: var(--gold)">yellow</span> = connecting, <span style="color: var(--coral)">red</span> = reconnecting, <span style="color: var(--text-dim)">gray</span> = disconnected. The adapter auto-reconnects with exponential backoff.
+</div>
+
+
+<!-- Multi-Team -->
+<h2 id="multi-team">Multi-Team</h2>
+
+<p>AgentWorld handles multiple concurrent teams. Each team gets:</p>
+<ul>
+  <li><strong>Horizontal band</strong> — Teams are spaced 2500px apart horizontally</li>
+  <li><strong>Own room cluster</strong> — Workspace, Review, Deploy rooms arranged in a 3&times;N grid (700px spacing)</li>
+  <li><strong>Distinct color palette</strong> — 5 color families (blue, green, coral, gold, purple) cycle per team</li>
+  <li><strong>Team label</strong> — Uppercase name floating above the room cluster</li>
+  <li><strong>Internal portals</strong> — Portals connect rooms within a team (no cross-team portals)</li>
+</ul>
+
+<div class="two-col">
+  <figure>
+    <img src="images/agentworld-demo-multiteam.png" alt="Multi-team demo with team headers in roster" onclick="openLightbox(this)">
+    <figcaption>Roster grouped by team: each team's agents listed under a [TEAM] header.</figcaption>
+  </figure>
+  <figure>
+    <img src="images/agentworld-live-multiteam.png" alt="Multi-team live mode with separate clusters" onclick="openLightbox(this)">
+    <figcaption>Multiple teams in live mode, each occupying their own spatial band with distinct color themes.</figcaption>
+  </figure>
+</div>
+
+<p>Use the minimap to navigate between team clusters. Scroll wheel zooms out to see the full multi-team landscape.</p>
+
+
+<!-- ===== PART 2: TECHNICAL DOCUMENTATION ===== -->
+
+<!-- Architecture Overview -->
+<h2 id="architecture"><span class="part-label">Part 2 — Technical Documentation</span>Architecture Overview</h2>
+
+<p>AgentWorld is a 3-tier system: a core type library, a Bevy game engine compiled to WebAssembly, and a Preact HUD overlay. In live mode, a bridge server translates external event databases into the game's event format.</p>
+
+<div class="diagram">┌─────────────────────────────────────────────────────────┐
+│                     Browser (WASM)                      │
+│                                                         │
+│  ┌──────────────────┐    ┌───────────────────────────┐  │
+│  │   Bevy 0.18      │◄──►│   Preact HUD (28KB)      │  │
+│  │   10 plugins      │    │   Roster, Log, Inspector  │  │
+│  │   WebGL2 canvas   │    │   StatusBar               │  │
+│  └────────▲─────────┘    └───────────────────────────┘  │
+│           │ window.__agentworld_event()                  │
+│           │ window.__agentworld_sync()                   │
+└───────────┼─────────────────────────────────────────────┘
+            │ WebSocket (ws://localhost:9090/ws)
+            │
+┌───────────▼─────────────────────────────────────────────┐
+│              Bridge Server (Bun, ~600 lines)            │
+│   SQLite polling → Event translation → WS broadcast     │
+│   Role normalization, room layout, team clustering       │
+└───────────▲─────────────────────────────────────────────┘
+            │ SQLite reads
+            │
+┌───────────┴─────────────────────────────────────────────┐
+│              Event Source (SQLite DB)                    │
+│   Claude Code hooks → observability events              │
+│   (or any system writing compatible events)              │
+└─────────────────────────────────────────────────────────┘</div>
+
+<h3>Crate Structure</h3>
+<pre><code>agent-world/
+├── crates/
+│   ├── core/          <span class="cmt"># Provider-agnostic types + event store</span>
+│   │   └── src/
+│   │       ├── types.rs         <span class="cmt"># Agent, Artifact, Room, Portal, Message, Tool</span>
+│   │       ├── events.rs        <span class="cmt"># 19 WorldEvent variants, EventStore</span>
+│   │       └── world_state.rs   <span class="cmt"># State projection from event replay</span>
+│   │
+│   └── game/          <span class="cmt"># Bevy 0.18 rendering engine (WASM)</span>
+│       ├── components.rs        <span class="cmt"># ECS components</span>
+│       └── src/
+│           ├── main.rs          <span class="cmt"># App setup + 10 plugins</span>
+│           └── plugins/         <span class="cmt"># One file per plugin</span>
+│
+├── bridge/            <span class="cmt"># SQLite→WebSocket translator (Bun)</span>
+│   └── server.ts
+│
+└── frontend/          <span class="cmt"># Preact HUD overlay</span>
+    └── src/
+        ├── store.ts, ws.ts, types.ts
+        └── components/          <span class="cmt"># Roster, EventLog, Inspector, StatusBar</span></code></pre>
+
+
+<!-- Core Crate -->
+<h2 id="core-crate">Core Crate</h2>
+
+<p>The core crate (<code>crates/core/</code>) defines all domain types and the event-sourced state system. It has minimal dependencies (just <code>serde</code> and <code>serde_json</code>) and is provider-agnostic — no Bevy, no browser APIs.</p>
+
+<h3>Key Types (<code>types.rs</code>)</h3>
+
+<h4>Agent</h4>
+<pre><code><span class="kw">pub struct</span> <span class="ty">Agent</span> {
+    <span class="kw">pub</span> id: <span class="ty">String</span>,
+    <span class="kw">pub</span> name: <span class="ty">String</span>,
+    <span class="kw">pub</span> role: <span class="ty">String</span>,              <span class="cmt">// "researcher", "coder", etc.</span>
+    <span class="kw">pub</span> provider: <span class="ty">AgentProvider</span>,   <span class="cmt">// Claude | Gpt | Local | Custom</span>
+    <span class="kw">pub</span> status: <span class="ty">AgentStatus</span>,      <span class="cmt">// Idle | Thinking | Acting | Waiting | Error | Paused</span>
+    <span class="kw">pub</span> position: <span class="ty">Position</span>,
+    <span class="kw">pub</span> room_id: <span class="ty">String</span>,
+    <span class="kw">pub</span> sprite: <span class="ty">SpriteConfig</span>,     <span class="cmt">// color, shape, scale</span>
+    <span class="kw">pub</span> equipped_tools: <span class="ty">Vec</span>&lt;<span class="ty">String</span>&gt;,
+    <span class="kw">pub</span> inventory: <span class="ty">Vec</span>&lt;<span class="ty">String</span>&gt;,
+    <span class="kw">pub</span> current_task: <span class="ty">Option</span>&lt;<span class="ty">TaskState</span>&gt;,
+    <span class="kw">pub</span> health: <span class="ty">f32</span>,             <span class="cmt">// 0.0..=100.0</span>
+    <span class="kw">pub</span> energy: <span class="ty">f32</span>,             <span class="cmt">// 0.0..=100.0</span>
+    <span class="kw">pub</span> thought: <span class="ty">Option</span>&lt;<span class="ty">String</span>&gt;,
+    <span class="kw">pub</span> metadata: <span class="ty">HashMap</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt;,
+}</code></pre>
+
+<h4>Artifact</h4>
+<pre><code><span class="kw">pub struct</span> <span class="ty">Artifact</span> {
+    <span class="kw">pub</span> id: <span class="ty">String</span>,
+    <span class="kw">pub</span> name: <span class="ty">String</span>,
+    <span class="kw">pub</span> kind: <span class="ty">ArtifactKind</span>,      <span class="cmt">// Document | Code | Data | Image | Plan | MessageBundle</span>
+    <span class="kw">pub</span> content_ref: <span class="ty">String</span>,
+    <span class="kw">pub</span> owner: <span class="ty">Option</span>&lt;<span class="ty">String</span>&gt;,
+    <span class="kw">pub</span> quality: <span class="ty">f32</span>,            <span class="cmt">// 0.0..=1.0</span>
+    <span class="kw">pub</span> position: <span class="ty">Position</span>,
+    <span class="kw">pub</span> room_id: <span class="ty">String</span>,
+    <span class="kw">pub</span> sprite: <span class="ty">SpriteConfig</span>,
+}</code></pre>
+
+<h4>Room &amp; Portal</h4>
+<pre><code><span class="kw">pub struct</span> <span class="ty">Room</span> {
+    <span class="kw">pub</span> id: <span class="ty">String</span>,
+    <span class="kw">pub</span> name: <span class="ty">String</span>,
+    <span class="kw">pub</span> width: <span class="ty">f32</span>, <span class="kw">pub</span> height: <span class="ty">f32</span>,
+    <span class="kw">pub</span> purpose: <span class="ty">String</span>,         <span class="cmt">// "workspace" | "review" | "deploy"</span>
+    <span class="kw">pub</span> portals: <span class="ty">Vec</span>&lt;<span class="ty">Portal</span>&gt;,
+}
+
+<span class="kw">pub struct</span> <span class="ty">Portal</span> {
+    <span class="kw">pub</span> id: <span class="ty">String</span>,
+    <span class="kw">pub</span> target_room: <span class="ty">String</span>,
+    <span class="kw">pub</span> position: <span class="ty">Position</span>,
+    <span class="kw">pub</span> target_position: <span class="ty">Position</span>,
+}</code></pre>
+
+<h3>EventStore (<code>events.rs</code>)</h3>
+
+<p>The event store is an append-only log with subscription support. World state is always derived by replaying events — there's no separate database.</p>
+
+<pre><code><span class="kw">pub struct</span> <span class="ty">EventStore</span> {
+    events: <span class="ty">Vec</span>&lt;<span class="ty">EventEntry</span>&gt;,
+    listeners: <span class="ty">HashMap</span>&lt;<span class="ty">String</span>, <span class="ty">Vec</span>&lt;<span class="ty">Listener</span>&gt;&gt;,
+    wildcard_listeners: <span class="ty">Vec</span>&lt;<span class="ty">Listener</span>&gt;,
+}
+
+<span class="kw">impl</span> <span class="ty">EventStore</span> {
+    <span class="kw">pub fn</span> <span class="fn">emit</span>(&amp;<span class="kw">mut self</span>, event: <span class="ty">WorldEvent</span>) -&gt; <span class="ty">usize</span>
+    <span class="kw">pub fn</span> <span class="fn">subscribe</span>(&amp;<span class="kw">mut self</span>, event_type: &amp;<span class="ty">str</span>, handler: ...)
+    <span class="kw">pub fn</span> <span class="fn">replay</span>(&amp;<span class="kw">self</span>, from: <span class="ty">usize</span>, to: <span class="ty">Option</span>&lt;<span class="ty">usize</span>&gt;) -&gt; &amp;[<span class="ty">EventEntry</span>]
+    <span class="kw">pub fn</span> <span class="fn">to_json</span>(&amp;<span class="kw">self</span>) -&gt; <span class="ty">Result</span>&lt;<span class="ty">String</span>&gt;
+    <span class="kw">pub fn</span> <span class="fn">from_json</span>(json: &amp;<span class="ty">str</span>) -&gt; <span class="ty">Result</span>&lt;<span class="ty">Self</span>&gt;
+}</code></pre>
+
+<h3>WorldState Projection (<code>world_state.rs</code>)</h3>
+<pre><code><span class="kw">pub struct</span> <span class="ty">WorldState</span> {
+    <span class="kw">pub</span> agents: <span class="ty">HashMap</span>&lt;<span class="ty">String</span>, <span class="ty">Agent</span>&gt;,
+    <span class="kw">pub</span> artifacts: <span class="ty">HashMap</span>&lt;<span class="ty">String</span>, <span class="ty">Artifact</span>&gt;,
+    <span class="kw">pub</span> tools: <span class="ty">HashMap</span>&lt;<span class="ty">String</span>, <span class="ty">Tool</span>&gt;,
+    <span class="kw">pub</span> rooms: <span class="ty">HashMap</span>&lt;<span class="ty">String</span>, <span class="ty">Room</span>&gt;,
+    <span class="kw">pub</span> messages: <span class="ty">Vec</span>&lt;<span class="ty">Message</span>&gt;,
+}
+
+<span class="cmt">// Rebuild complete state from events — time-travel comes free</span>
+<span class="kw">let</span> state = <span class="ty">WorldState</span>::<span class="fn">from_events</span>(&amp;store);</code></pre>
+
+
+<!-- Game Crate -->
+<h2 id="game-crate">Game Crate (Bevy)</h2>
+
+<p>The game crate (<code>crates/game/</code>) is a Bevy 0.18 application compiled to WebAssembly. It uses 10 plugins, each handling a specific responsibility:</p>
+
+<table>
+  <tr><th>Plugin</th><th>File</th><th>Size</th><th>Responsibility</th></tr>
+  <tr><td>WorldPlugin</td><td>world.rs</td><td>15.5KB</td><td>Room geometry, themed tiles, portals, ambient particles, team labels</td></tr>
+  <tr><td>EventBridgePlugin</td><td>events.rs</td><td>23KB</td><td>Demo scenario (16-step cycle), event splitting, Bevy&harr;React JS bridge</td></tr>
+  <tr><td>AdapterPlugin</td><td>adapter.rs</td><td>8.3KB</td><td>WebSocket client, auto-reconnect with exponential backoff, URL parsing</td></tr>
+  <tr><td>AgentPlugin</td><td>agents.rs</td><td>29KB</td><td>Agent lifecycle, smooth movement (80px/s), portal warp (3 phases), trail dots, status rings, health/energy bars</td></tr>
+  <tr><td>VisualsPlugin</td><td>visuals.rs</td><td>17KB</td><td>Thought bubbles, message projectiles, tool flashes, artifact glow, connection lines</td></tr>
+  <tr><td>SpriteArtPlugin</td><td>sprites.rs</td><td>11KB</td><td>Runtime pixel art from const RGBA arrays (7 role designs, no image files)</td></tr>
+  <tr><td>SoundPlugin</td><td>sound.rs</td><td>7.6KB</td><td>Procedural Web Audio synthesis (8 sound types), mute toggle</td></tr>
+  <tr><td>CameraPlugin</td><td>camera.rs</td><td>5.2KB</td><td>2D orthographic, zoom/pan, agent following (1-9 keys), smooth easing</td></tr>
+  <tr><td>HudPlugin</td><td>hud.rs</td><td>9KB</td><td>Minimap (room outlines + agent dots), help overlay (H key), connection dot</td></tr>
+  <tr><td>DebugPlugin</td><td>debug.rs</td><td>1.7KB</td><td>FPS counter, agent count, connection mode indicator</td></tr>
+</table>
+
+<h3>ECS Components</h3>
+<p>Key Bevy components that entities carry:</p>
+<pre><code><span class="ty">AgentSprite</span>      { agent_id, name, role, status, last_tool, tool_count }
+<span class="ty">ArtifactSprite</span>   { artifact_id, name, kind, owner, quality }
+<span class="ty">MovementTarget</span>   { target: <span class="ty">Vec2</span>, speed: <span class="ty">f32</span> }
+<span class="ty">PortalTransition</span> { phase: Approaching|WarpOut|WarpIn, timer, positions }
+<span class="ty">ThoughtBubble</span>    { agent_id, lifetime, max_lifetime }
+<span class="ty">MessageProjectile</span> { from_pos, to_agent_id, progress, speed }
+<span class="ty">ToolEffect</span>       { lifetime, success: <span class="ty">Option</span>&lt;<span class="ty">bool</span>&gt; }
+<span class="ty">TrailDot</span>         { lifetime, max_lifetime }
+<span class="ty">ConnectionLine</span>   { from_agent, to_agent, lifetime }
+<span class="ty">MinimapDot</span>, <span class="ty">MinimapPanel</span>, <span class="ty">MinimapRoom</span>
+<span class="ty">PortalSprite</span>, <span class="ty">StatusRing</span>, <span class="ty">HealthBar</span>, <span class="ty">EnergyBar</span>
+<span class="ty">AmbientParticle</span>, <span class="ty">PortalParticle</span></code></pre>
+
+
+<!-- Bridge Server -->
+<h2 id="bridge-server">Bridge Server</h2>
+
+<p>The bridge server (<code>bridge/server.ts</code>, ~600 lines, runs on Bun) translates an external event database (SQLite) into AgentWorld's WorldEvent format and broadcasts over WebSocket.</p>
+
+<figure>
+  <img src="images/agentworld-bridge-connected.png" alt="Bridge server connected and translating events" onclick="openLightbox(this)">
+  <figcaption>Bridge server connected: SQLite events being translated and pushed to the game client.</figcaption>
+</figure>
+
+<h3>Event Translation</h3>
+<table>
+  <tr><th>Source Event</th><th>WorldEvent</th></tr>
+  <tr><td><code>agent_spawn</code></td><td>AgentSpawn + RoomEnter</td></tr>
+  <tr><td><code>agent_stop</code></td><td>AgentStatusChange(Paused) + AgentDespawn</td></tr>
+  <tr><td><code>tool_use</code> (PreToolUse)</td><td>AgentUseTool (+ auto-creates agent if unseen)</td></tr>
+  <tr><td>PostToolUse</td><td>AgentToolResult(success/fail)</td></tr>
+  <tr><td><code>message</code></td><td>MessageSend</td></tr>
+</table>
+
+<h3>Room &amp; Team Layout</h3>
+<p>The bridge auto-generates the spatial layout:</p>
+<ul>
+  <li>Each team gets a horizontal band (2500px X spacing between teams)</li>
+  <li>Rooms within a team: 3&times;N grid with 700px spacing</li>
+  <li>Portals auto-created between rooms in the same team</li>
+  <li>5 color families cycle per team: blue, green, coral, gold, purple</li>
+</ul>
+
+<h3>Role Normalization</h3>
+<p>The bridge maps Claude Code's <code>subagent_type</code> to game roles via <code>normalizeRole()</code>: "Explore" &rarr; researcher, "general-purpose" &rarr; coder, "Plan" &rarr; planner, etc.</p>
+
+<h3>Command Line</h3>
+<pre><code>bun run bridge/server.ts \
+  [--db PATH]      <span class="cmt"># Default: ~/ops/state/events.db</span>
+  [--port PORT]    <span class="cmt"># Default: 9090</span>
+  [--replay]       <span class="cmt"># Replay last hour of events on startup</span>
+  [--team FILTER]  <span class="cmt"># Watch only one team name</span></code></pre>
+
+<figure>
+  <img src="images/agentworld-adapter-test.png" alt="WebSocket adapter testing" onclick="openLightbox(this)">
+  <figcaption>WebSocket adapter test: verifying the connection pipeline from bridge server to Bevy client.</figcaption>
+</figure>
+
+
+<!-- Frontend -->
+<h2 id="frontend">Frontend (React Shell)</h2>
+
+<p>The HUD overlay uses Preact 10.25 with <code>@preact/signals</code> 2.8 for reactive state. It builds to ~28KB and is loaded into a <code>&lt;div&gt;</code> overlaying the Bevy WebGL canvas.</p>
+
+<h3>State Management (store.ts)</h3>
+<pre><code><span class="cmt">// Reactive signals</span>
+<span class="kw">export const</span> agents = <span class="fn">signal</span>&lt;<span class="ty">Map</span>&lt;<span class="ty">string</span>, <span class="ty">AgentState</span>&gt;&gt;(<span class="kw">new</span> <span class="ty">Map</span>());
+<span class="kw">export const</span> artifacts = <span class="fn">signal</span>&lt;<span class="ty">Map</span>&lt;<span class="ty">string</span>, <span class="ty">ArtifactState</span>&gt;&gt;(<span class="kw">new</span> <span class="ty">Map</span>());
+<span class="kw">export const</span> eventLog = <span class="fn">signal</span>&lt;<span class="ty">EventEntry</span>[]&gt;([]);  <span class="cmt">// 200-entry buffer</span>
+<span class="kw">export const</span> selectedAgent = <span class="fn">signal</span>&lt;<span class="ty">string</span> | <span class="kw">null</span>&gt;(<span class="kw">null</span>);
+<span class="kw">export const</span> connectionState = <span class="fn">signal</span>&lt;<span class="ty">ConnState</span>&gt;(<span class="str">"disconnected"</span>);
+
+<span class="cmt">// Computed: agents grouped by team</span>
+<span class="kw">export const</span> agentsByTeam = <span class="fn">computed</span>(() =&gt; { ... });</code></pre>
+
+<h3>Bevy &harr; React Bridge (ws.ts)</h3>
+<p>Communication between layers uses window-level callbacks:</p>
+<pre><code><span class="cmt">// Bevy → React (per event)</span>
+window.<span class="fn">__agentworld_event</span>(json)
+
+<span class="cmt">// Bevy → React (periodic sync)</span>
+window.<span class="fn">__agentworld_sync</span>(json)   <span class="cmt">// agents, artifacts, connection state</span>
+
+<span class="cmt">// React → Bevy (user interaction)</span>
+window.<span class="fn">dispatchEvent</span>(<span class="kw">new</span> <span class="ty">CustomEvent</span>(<span class="str">"agentworld:select"</span>, { detail: agent_id }))</code></pre>
+
+<h3>Components</h3>
+<table>
+  <tr><th>Component</th><th>File</th><th>Function</th></tr>
+  <tr><td>Roster</td><td>Roster.tsx</td><td>Agent list with team headers, status dots, click-to-inspect</td></tr>
+  <tr><td>EventLog</td><td>EventLog.tsx</td><td>200-entry scrolling log, color-coded, auto-scroll</td></tr>
+  <tr><td>Inspector</td><td>Inspector.tsx</td><td>Full agent details, health/energy bars, inventory grid</td></tr>
+  <tr><td>StatusBar</td><td>StatusBar.tsx</td><td>Connection dot + agent count</td></tr>
+</table>
+
+
+<!-- Build System -->
+<h2 id="build-system">Build System</h2>
+
+<h3>Toolchain</h3>
+<pre><code><span class="cmt"># rust-toolchain.toml — pinned to avoid winit breakage</span>
+[toolchain]
+channel = <span class="str">"1.89"</span>
+targets = [<span class="str">"wasm32-unknown-unknown"</span>]</code></pre>
+
+<div class="callout warn">
+  <div class="label">Warning</div>
+  Rust &ge;1.90 breaks winit 0.30.12 (type inference). The toolchain is intentionally pinned to 1.89.
+</div>
+
+<h3>Trunk (WASM Build)</h3>
+<p>Trunk handles the WASM compilation pipeline. The <code>Trunk.toml</code> pre-build hook runs <code>bun build</code> on the frontend before compiling the Rust code to WASM:</p>
+<pre><code><span class="cmt"># Trunk.toml</span>
+[[hooks]]
+stage = <span class="str">"pre_build"</span>
+command = <span class="str">"bun"</span>
+command_arguments = [<span class="str">"build"</span>, <span class="str">"frontend/src/main.tsx"</span>, <span class="str">"--outdir"</span>, <span class="str">"frontend/dist"</span>, <span class="str">"--minify"</span>]</code></pre>
+
+<h3>Build Commands</h3>
+<pre><code><span class="cmt"># Development (hot-reload)</span>
+trunk serve --address 0.0.0.0 --port 8080
+
+<span class="cmt"># Production</span>
+trunk build --release
+
+<span class="cmt"># Frontend only</span>
+cd frontend &amp;&amp; bun install &amp;&amp; bun build src/main.tsx --outdir dist --minify
+
+<span class="cmt"># Tests (core crate only — game crate is browser-tested)</span>
+cargo test -p agent-world-core</code></pre>
+
+
+<!-- Service Management -->
+<h2 id="service-mgmt">Service Management</h2>
+
+<p>AgentWorld is process-based, not a systemd service. Three shell scripts manage the lifecycle:</p>
+
+<h3>start.sh</h3>
+<pre><code>./bin/start.sh           <span class="cmt"># Demo mode: trunk only</span>
+./bin/start.sh --live    <span class="cmt"># Live mode: trunk + bridge with --replay</span></code></pre>
+<p>Saves PIDs to <code>/tmp/agentworld.pids</code> for the stop script. In live mode, the bridge starts first with <code>--replay</code> to load the last hour of events.</p>
+
+<h3>stop.sh</h3>
+<pre><code>./bin/stop.sh</code></pre>
+<p>Reads PIDs from the file, kills trunk and bridge, also catches stray Playwright Chrome instances (<code>ms-playwright/mcp-chrome</code>).</p>
+
+<h3>status.sh</h3>
+<pre><code>./bin/status.sh
+<span class="cmt"># Output:</span>
+<span class="cmt"># Trunk:      RUNNING (PID 1234, 5.2% CPU)</span>
+<span class="cmt"># Bridge:     RUNNING (PID 5678, 0.1% CPU)</span>
+<span class="cmt"># Playwright: STOPPED (good)</span></code></pre>
+
+<div class="callout warn">
+  <div class="label">Memory Warning</div>
+  Bevy WASM compiles can consume 10-15GB RAM. The lab runs a 16GB swap safety net (8GB zram + 16GB swapfile) to prevent OOM kills during builds.
+</div>
+
+
+<!-- Event Pipeline -->
+<h2 id="event-pipeline">Event Pipeline</h2>
+
+<p>The end-to-end event flow from real agent work to visual rendering:</p>
+
+<div class="diagram">Claude Code team working
+        │
+        ▼
+┌──────────────────┐
+│  Observability    │  pre_tool_use.py / send_event.py hooks
+│  Hooks            │  (async dispatch since 2026-02-25)
+└────────┬─────────┘
+         ▼
+┌──────────────────┐
+│  SQLite DB        │  ~/ops/state/events.db (WAL mode)
+│  events table     │  hook_event_type, event_category,
+│                   │  team_name, agent_name, payload
+└────────┬─────────┘
+         │ polled every ~500ms
+         ▼
+┌──────────────────┐
+│  Bridge Server    │  bun run bridge/server.ts
+│  (Bun + SQLite)   │  Normalizes roles, generates rooms,
+│                   │  translates to WorldEvent JSON
+└────────┬─────────┘
+         │ WebSocket broadcast
+         ▼
+┌──────────────────┐
+│  AdapterPlugin    │  Bevy WASM, auto-reconnect
+│  (WebSocket)      │  Deserializes JSON → WorldEvent
+└────────┬─────────┘
+         │ Bevy event queue
+         ▼
+┌──────────────────┐
+│  EventBridge      │  Splits into PendingEvents (state)
+│  Plugin           │  + PendingVisualEvents (effects)
+└────────┬─────────┘
+         │ ECS systems
+         ▼
+┌──────────────────┐
+│  Agent/Visual/    │  Spawn sprites, animate movement,
+│  Sound Plugins    │  render effects, play sounds
+└────────┬─────────┘
+         │ window.__agentworld_event()
+         ▼
+┌──────────────────┐
+│  Preact HUD       │  Updates roster, event log,
+│  (signals)        │  inspector, status bar
+└──────────────────┘</div>
+
+
+<!-- WorldEvent Reference -->
+<h2 id="worldevent-ref">WorldEvent Reference</h2>
+
+<p>All 19 event types with their JSON structure. Events are the single source of truth — world state is always a projection of the event stream.</p>
+
+<h3>Agent Lifecycle</h3>
+
+<h4>AgentSpawn</h4>
+<pre><code>{
+  <span class="str">"AgentSpawn"</span>: {
+    <span class="str">"id"</span>: <span class="str">"team-alpha/researcher"</span>,
+    <span class="str">"name"</span>: <span class="str">"Researcher"</span>,
+    <span class="str">"role"</span>: <span class="str">"researcher"</span>,
+    <span class="str">"provider"</span>: <span class="str">"Claude"</span>,
+    <span class="str">"status"</span>: <span class="str">"Idle"</span>,
+    <span class="str">"position"</span>: { <span class="str">"x"</span>: 100, <span class="str">"y"</span>: 200 },
+    <span class="str">"room_id"</span>: <span class="str">"workspace"</span>,
+    <span class="str">"sprite"</span>: { <span class="str">"color"</span>: [100, 149, 237, 255], <span class="str">"shape"</span>: <span class="str">"Square"</span>, <span class="str">"scale"</span>: 1.0 },
+    <span class="str">"equipped_tools"</span>: [],
+    <span class="str">"inventory"</span>: [],
+    <span class="str">"current_task"</span>: <span class="kw">null</span>,
+    <span class="str">"health"</span>: 100, <span class="str">"energy"</span>: 100,
+    <span class="str">"thought"</span>: <span class="kw">null</span>,
+    <span class="str">"metadata"</span>: {}
+  }
+}</code></pre>
+
+<h4>AgentDespawn</h4>
+<pre><code>{ <span class="str">"AgentDespawn"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/researcher"</span> } }</code></pre>
+
+<h4>AgentMove</h4>
+<pre><code>{ <span class="str">"AgentMove"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"to"</span>: { <span class="str">"x"</span>: 350, <span class="str">"y"</span>: 180 } } }</code></pre>
+
+<h4>AgentStatusChange</h4>
+<pre><code>{ <span class="str">"AgentStatusChange"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"status"</span>: <span class="str">"Thinking"</span>, <span class="str">"reason"</span>: <span class="str">"Analyzing spec"</span> } }</code></pre>
+
+<h4>AgentThink</h4>
+<pre><code>{ <span class="str">"AgentThink"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"thought"</span>: <span class="str">"implementing feature..."</span> } }</code></pre>
+
+<h4>AgentEquipTool</h4>
+<pre><code>{ <span class="str">"AgentEquipTool"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"tool_id"</span>: <span class="str">"bash"</span> } }</code></pre>
+
+<h3>Tool Use</h3>
+
+<h4>AgentUseTool</h4>
+<pre><code>{ <span class="str">"AgentUseTool"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"tool_id"</span>: <span class="str">"bash"</span>, <span class="str">"target"</span>: <span class="str">"cargo test"</span> } }</code></pre>
+
+<h4>AgentToolResult</h4>
+<pre><code>{ <span class="str">"AgentToolResult"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"tool_id"</span>: <span class="str">"bash"</span>, <span class="str">"success"</span>: <span class="kw">true</span> } }</code></pre>
+
+<h3>Artifacts</h3>
+
+<h4>ArtifactCreate</h4>
+<pre><code>{
+  <span class="str">"ArtifactCreate"</span>: {
+    <span class="str">"id"</span>: <span class="str">"spec-doc"</span>, <span class="str">"name"</span>: <span class="str">"API Spec"</span>, <span class="str">"kind"</span>: <span class="str">"Document"</span>,
+    <span class="str">"content_ref"</span>: <span class="str">"spec.md"</span>, <span class="str">"owner"</span>: <span class="str">"team-alpha/researcher"</span>,
+    <span class="str">"quality"</span>: 0.5, <span class="str">"position"</span>: { <span class="str">"x"</span>: 100, <span class="str">"y"</span>: 200 },
+    <span class="str">"room_id"</span>: <span class="str">"workspace"</span>,
+    <span class="str">"sprite"</span>: { <span class="str">"color"</span>: [100, 149, 237, 255], <span class="str">"shape"</span>: <span class="str">"Square"</span>, <span class="str">"scale"</span>: 0.5 }
+  }
+}</code></pre>
+
+<h4>AgentPickUp / AgentDrop / AgentTransfer</h4>
+<pre><code>{ <span class="str">"AgentPickUp"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"artifact_id"</span>: <span class="str">"spec-doc"</span> } }
+{ <span class="str">"AgentDrop"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"artifact_id"</span>: <span class="str">"spec-doc"</span>, <span class="str">"position"</span>: { <span class="str">"x"</span>: 300, <span class="str">"y"</span>: 200 } } }
+{ <span class="str">"AgentTransfer"</span>: { <span class="str">"from_id"</span>: <span class="str">"team-alpha/researcher"</span>, <span class="str">"to_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"artifact_id"</span>: <span class="str">"spec-doc"</span> } }</code></pre>
+
+<h4>ArtifactQualityChange</h4>
+<pre><code>{ <span class="str">"ArtifactQualityChange"</span>: { <span class="str">"artifact_id"</span>: <span class="str">"spec-doc"</span>, <span class="str">"quality"</span>: 0.85 } }</code></pre>
+
+<h3>Messages</h3>
+
+<h4>MessageSend</h4>
+<pre><code>{
+  <span class="str">"MessageSend"</span>: {
+    <span class="str">"id"</span>: <span class="str">"msg-1"</span>, <span class="str">"from"</span>: <span class="str">"team-alpha/researcher"</span>,
+    <span class="str">"to"</span>: [<span class="str">"team-alpha/coder"</span>],
+    <span class="str">"channel"</span>: <span class="str">"Direct"</span>,
+    <span class="str">"content"</span>: <span class="str">"Here's the spec for the new API"</span>,
+    <span class="str">"content_preview"</span>: <span class="str">"Here's the spec..."</span>,
+    <span class="str">"timestamp"</span>: 1709312400.0,
+    <span class="str">"visual_style"</span>: <span class="str">"Projectile"</span>
+  }
+}</code></pre>
+
+<h3>Rooms</h3>
+
+<h4>RoomCreate / RoomEnter / RoomExit</h4>
+<pre><code>{ <span class="str">"RoomCreate"</span>: { <span class="str">"id"</span>: <span class="str">"workspace"</span>, <span class="str">"name"</span>: <span class="str">"Workspace"</span>, <span class="str">"width"</span>: 600, <span class="str">"height"</span>: 400, <span class="str">"purpose"</span>: <span class="str">"workspace"</span>, <span class="str">"portals"</span>: [...] } }
+{ <span class="str">"RoomEnter"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"room_id"</span>: <span class="str">"review"</span> } }
+{ <span class="str">"RoomExit"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"room_id"</span>: <span class="str">"workspace"</span> } }</code></pre>
+
+<h3>Human &amp; Error</h3>
+
+<h4>HumanCommand / AgentError</h4>
+<pre><code>{ <span class="str">"HumanCommand"</span>: { <span class="str">"target_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"command"</span>: <span class="str">"pause"</span> } }
+{ <span class="str">"AgentError"</span>: { <span class="str">"agent_id"</span>: <span class="str">"team-alpha/coder"</span>, <span class="str">"error"</span>: <span class="str">"Tool timeout after 30s"</span> } }</code></pre>
+
+
+<!-- Configuration -->
+<h2 id="configuration">Configuration</h2>
+
+<h3>URL Parameters</h3>
+<table>
+  <tr><th>Parameter</th><th>Description</th><th>Default</th></tr>
+  <tr><td><code>?ws=URL</code></td><td>WebSocket URL for live mode bridge</td><td>None (demo mode)</td></tr>
+</table>
+<p>If no <code>ws</code> parameter is provided, AgentWorld runs in demo mode with the built-in 16-step scenario.</p>
+
+<h3>Bridge Server Flags</h3>
+<table>
+  <tr><th>Flag</th><th>Description</th><th>Default</th></tr>
+  <tr><td><code>--db PATH</code></td><td>Path to SQLite events database</td><td><code>~/ops/state/events.db</code></td></tr>
+  <tr><td><code>--port PORT</code></td><td>WebSocket server port</td><td><code>9090</code></td></tr>
+  <tr><td><code>--replay</code></td><td>Replay last hour of events on client connect</td><td>Off</td></tr>
+  <tr><td><code>--team NAME</code></td><td>Filter to only one team</td><td>All teams</td></tr>
+</table>
+
+<h3>Environment</h3>
+<table>
+  <tr><th>Requirement</th><th>Version</th><th>Notes</th></tr>
+  <tr><td>Rust</td><td>1.89 (pinned)</td><td>&ge;1.90 breaks winit</td></tr>
+  <tr><td>wasm32-unknown-unknown</td><td>—</td><td>Rustup target</td></tr>
+  <tr><td>trunk</td><td>latest</td><td>WASM build tool</td></tr>
+  <tr><td>Bun</td><td>&ge;1.0</td><td>Bridge server + frontend build</td></tr>
+</table>
+
+
+<!-- Development History -->
+<h2 id="dev-history">Development History</h2>
+
+<p>AgentWorld V1 was built across 8 development sessions. Here's a visual timeline of the evolution:</p>
+
+<div class="two-col">
+  <figure>
+    <img src="images/agentworld-visuals-1.png" alt="Early agent rendering with Mesh2d" onclick="openLightbox(this)">
+    <figcaption>Early sessions: Mesh2d rectangles, basic room grids, no sprites or effects.</figcaption>
+  </figure>
+  <figure>
+    <img src="images/agentworld-session4-final.png" alt="Session 4 state with HUD elements" onclick="openLightbox(this)">
+    <figcaption>Session 4: Rooms, portals, thought bubbles, and early HUD taking shape.</figcaption>
+  </figure>
+</div>
+
+<figure>
+  <img src="images/agentworld-reconnect-status.png" alt="Pre-React HUD layout" onclick="openLightbox(this)">
+  <figcaption>Pre-React era: Bevy-rendered text HUD before the dual-layer architecture was adopted.</figcaption>
+</figure>
+
+<figure>
+  <img src="images/agentworld-verify-live.png" alt="Live mode verification with single agent" onclick="openLightbox(this)">
+  <figcaption>First successful live mode verification: a real Claude Code agent appearing in the world.</figcaption>
+</figure>
+
+<h3>Session Timeline</h3>
+<table>
+  <tr><th>Session</th><th>Milestone</th></tr>
+  <tr><td>1-2</td><td>Core crate, Bevy setup, room grids, basic agent rendering</td></tr>
+  <tr><td>3</td><td>Portals, movement system, camera controls</td></tr>
+  <tr><td>4</td><td>Thought bubbles, message arcs, tool effects, minimap</td></tr>
+  <tr><td>5</td><td>Bridge server, live mode, WebSocket adapter</td></tr>
+  <tr><td>6</td><td>Pixel art sprites (7 roles), status animations</td></tr>
+  <tr><td>7</td><td>Sound system (8 procedural types), React HUD shell</td></tr>
+  <tr><td>8</td><td>Multi-team support, portal particles, final polish</td></tr>
+  <tr><td>9</td><td>Inventory system, service scripts, README</td></tr>
+</table>
+
+<h3>Tech Stats</h3>
+<table>
+  <tr><th>Metric</th><th>Value</th></tr>
+  <tr><td>Rust code</td><td>~5,000 lines</td></tr>
+  <tr><td>TypeScript code</td><td>~500 lines</td></tr>
+  <tr><td>Shell scripts</td><td>~100 lines</td></tr>
+  <tr><td>Bevy plugins</td><td>10</td></tr>
+  <tr><td>WorldEvent types</td><td>19</td></tr>
+  <tr><td>Agent roles</td><td>7</td></tr>
+  <tr><td>Sound types</td><td>8</td></tr>
+  <tr><td>Frontend bundle</td><td>28KB</td></tr>
+  <tr><td>WASM output</td><td>~300KB (~100KB gzipped)</td></tr>
+</table>
+
+
+<!-- Footer -->
+<div style="margin-top: 80px; padding-top: 24px; border-top: 1px solid var(--border); text-align: center; color: var(--text-dim); font-size: 12px;">
+  AgentWorld V1 Manual &mdash; Built 2026-03-01<br>
+  Provider-agnostic, event-sourced visualization for multi-agent systems
+</div>
+
+</main>
+
+<script>
+function openLightbox(img) {
+  const lb = document.getElementById('lightbox');
+  const lbImg = document.getElementById('lightbox-img');
+  lbImg.src = img.src;
+  lbImg.alt = img.alt;
+  lb.classList.add('active');
+}
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.getElementById('lightbox').classList.remove('active');
+  }
+});
+</script>
+
+</body>
+</html>
