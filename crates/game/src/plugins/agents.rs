@@ -615,27 +615,83 @@ fn animate_portal_particles(
 /// Also applies a gentle breathing animation to idle agents.
 fn update_status_visuals(
     time: Res<Time>,
-    mut agents: Query<(&AgentSprite, &Children, &mut Transform)>,
+    mut agents: Query<(Entity, &AgentSprite, &Children, &mut Transform)>,
     mut rings: Query<(&mut Transform, &StatusRing, &MeshMaterial2d<ColorMaterial>), Without<AgentSprite>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut flash_timers: Local<std::collections::HashMap<Entity, f32>>,
 ) {
     let t = time.elapsed_secs();
+    let dt = time.delta_secs();
 
-    for (sprite, children, mut agent_tf) in &mut agents {
-        // Gentle breathing animation for idle/thinking agents
-        let breathe = match sprite.status {
-            AgentStatus::Idle => 1.0 + (t * 1.5).sin() * 0.03,
-            AgentStatus::Thinking => 1.0 + (t * 2.0).sin() * 0.02,
-            _ => 1.0,
+    // Decay flash timers
+    for timer in flash_timers.values_mut() {
+        *timer = (*timer - dt).max(0.0);
+    }
+
+    for (entity, sprite, children, mut agent_tf) in &mut agents {
+        // Track tool-use transitions: set flash when entering Acting
+        if sprite.status == AgentStatus::Acting {
+            flash_timers.entry(entity).or_insert(0.3);
+        }
+        let flash = flash_timers.get(&entity).copied().unwrap_or(0.0);
+
+        // Per-entity phase offset so agents don't bob in unison
+        // Use entity bits for a stable per-agent phase offset
+        let phase = (entity.to_bits() & 0xFF) as f32 * 0.37;
+
+        // Status-based animations
+        let (scale, y_offset) = match sprite.status {
+            AgentStatus::Idle => {
+                // Gentle float bobble
+                let bobble = (t * 1.2 + phase).sin() * 2.5;
+                let breathe = 1.0 + (t * 1.5 + phase).sin() * 0.03;
+                (breathe, bobble)
+            }
+            AgentStatus::Thinking => {
+                // Small circular drift
+                let orbit_x = (t * 1.8 + phase).cos() * 1.5;
+                let orbit_y = (t * 1.8 + phase).sin() * 1.5;
+                let breathe = 1.0 + (t * 2.5 + phase).sin() * 0.02;
+                // Apply orbit as y offset (x handled below)
+                agent_tf.translation.x += orbit_x * dt;
+                (breathe, orbit_y)
+            }
+            AgentStatus::Acting => {
+                // Action flash: quick scale pop that decays
+                let pop = if flash > 0.0 { 1.0 + flash * 0.4 } else { 1.0 };
+                (pop, 0.0)
+            }
+            AgentStatus::Waiting => {
+                // Slow sway
+                let sway = (t * 0.8 + phase).sin() * 1.5;
+                (1.0, sway)
+            }
+            AgentStatus::Error => {
+                // Rapid shake
+                let shake = (t * 12.0).sin() * 2.0;
+                (1.0, shake)
+            }
+            AgentStatus::Paused => {
+                // Dim and still
+                (0.95, 0.0)
+            }
         };
-        agent_tf.scale = Vec3::splat(breathe);
+
+        agent_tf.scale = Vec3::splat(scale);
+        // Apply y offset without overriding movement target position
+        // The offset is relative — move_agents sets the base position
+        agent_tf.translation.y += y_offset * dt * 5.0;
 
         for child in children.iter() {
             if let Ok((mut ring_transform, ring, mat_handle)) = rings.get_mut(child) {
                 let (color, pulse) = match sprite.status {
                     AgentStatus::Idle => (Color::srgba(0.4, 0.4, 0.5, 0.2), false),
                     AgentStatus::Thinking => (Color::srgba(0.3, 0.5, 1.0, 0.5), true),
-                    AgentStatus::Acting => (Color::srgba(0.2, 0.9, 0.3, 0.5), false),
+                    AgentStatus::Acting => {
+                        // Flash ring green on tool use
+                        let alpha = if flash > 0.0 { 0.5 + flash } else { 0.5 };
+                        (Color::srgba(0.2, 0.9, 0.3, alpha), false)
+                    }
                     AgentStatus::Waiting => (Color::srgba(0.9, 0.7, 0.1, 0.4), true),
                     AgentStatus::Error => (Color::srgba(1.0, 0.2, 0.2, 0.6), true),
                     AgentStatus::Paused => (Color::srgba(0.5, 0.5, 0.5, 0.3), false),
@@ -647,6 +703,8 @@ fn update_status_visuals(
 
                 let scale = if pulse {
                     ring.base_scale + (t * 3.0).sin() * 0.15
+                } else if flash > 0.0 {
+                    ring.base_scale * (1.0 + flash * 0.5)
                 } else {
                     ring.base_scale
                 };

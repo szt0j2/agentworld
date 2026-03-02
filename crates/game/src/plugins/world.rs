@@ -10,6 +10,7 @@ pub struct WorldPlugin;
 #[derive(Resource, Default)]
 pub struct RoomIndex {
     pub positions: HashMap<String, Vec2>,
+    pub purposes: HashMap<String, String>,
 }
 
 /// Maps portal_id → (world_pos, target_room_id, target_local_pos).
@@ -215,8 +216,48 @@ fn handle_room_events(
                 ));
             }
 
-            // Register room position
+            // Corner accent decorations — themed symbols in room corners
+            let corner_offset = half + tile_size / 2.0 - 20.0;
+            let corner_symbols: Vec<(&str, f32, f32)> = match room.purpose.as_str() {
+                "workspace" => vec![
+                    ("{", -corner_offset, corner_offset),
+                    ("}", corner_offset, corner_offset),
+                    (";", corner_offset, -corner_offset),
+                ],
+                "review" => vec![
+                    ("?", -corner_offset, corner_offset),
+                    ("✓", corner_offset, corner_offset),
+                    ("×", corner_offset, -corner_offset),
+                ],
+                "deploy" => vec![
+                    ("▲", -corner_offset, corner_offset),
+                    ("●", corner_offset, corner_offset),
+                ],
+                _ => vec![
+                    ("·", -corner_offset, corner_offset),
+                    ("·", corner_offset, corner_offset),
+                ],
+            };
+            for (sym, dx, dy) in corner_symbols {
+                commands.spawn((
+                    Text2d::new(sym),
+                    TextFont {
+                        font_size: 14.0,
+                        ..default()
+                    },
+                    TextColor(Color::srgba(
+                        border_color.to_srgba().red,
+                        border_color.to_srgba().green,
+                        border_color.to_srgba().blue,
+                        0.25,
+                    )),
+                    Transform::from_xyz(room_x + dx, room_y + dy, 0.06),
+                ));
+            }
+
+            // Register room position and purpose
             room_index.positions.insert(room.id.clone(), Vec2::new(room_x, room_y));
+            room_index.purposes.insert(room.id.clone(), room.purpose.clone());
 
             // Spawn portals
             for portal in &room.portals {
@@ -306,16 +347,23 @@ fn emit_ambient_particles(
     let t = time.elapsed_secs();
     let dot_mesh = meshes.add(Circle::new(2.0));
 
-    for (_, &room_pos) in &room_index.positions {
+    for (room_id, &room_pos) in &room_index.positions {
         // Spawn 1 particle per room per second, at random-ish position
         let offset_x = ((t * 7.3).sin() * 200.0 + room_pos.x) % 200.0 - 100.0;
         let offset_y = ((t * 5.1).cos() * 200.0 + room_pos.y) % 200.0 - 100.0;
         let drift_x = (t * 3.7).sin() * 5.0;
         let drift_y = 3.0 + (t * 2.1).cos().abs() * 4.0;
 
-        let dot_mat = materials.add(ColorMaterial::from_color(
-            Color::srgba(0.3, 0.3, 0.6, 0.08),
-        ));
+        // Theme-colored particles based on room purpose
+        let purpose = room_index.purposes.get(room_id).map(|s| s.as_str()).unwrap_or("workspace");
+        let particle_color = match purpose {
+            "workspace" => Color::srgba(0.3, 0.3, 0.6, 0.08),
+            "review" => Color::srgba(0.5, 0.3, 0.6, 0.08),
+            "deploy" => Color::srgba(0.3, 0.6, 0.3, 0.08),
+            _ => Color::srgba(0.3, 0.3, 0.6, 0.08),
+        };
+
+        let dot_mat = materials.add(ColorMaterial::from_color(particle_color));
 
         commands.spawn((
             Mesh2d(dot_mesh.clone()),
@@ -345,10 +393,11 @@ fn animate_ambient_particles(
         tf.translation.x += particle.drift.x * time.delta_secs();
         tf.translation.y += particle.drift.y * time.delta_secs();
 
-        // Fade
+        // Fade — preserve original hue, just reduce alpha
         if let Some(mat) = materials.get_mut(&mat_handle.0) {
+            let c = mat.color.to_srgba();
             let alpha = 0.08 * (1.0 - frac).max(0.0);
-            mat.color = Color::srgba(0.3, 0.3, 0.6, alpha);
+            mat.color = Color::srgba(c.red, c.green, c.blue, alpha);
         }
 
         if particle.lifetime >= particle.max_lifetime {
