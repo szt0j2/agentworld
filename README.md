@@ -2,112 +2,223 @@
 
 **See your AI agents work.** Not logs. Not dashboards. A living, breathing world where every tool call, every message, every decision becomes visible and spatial.
 
-<!-- TODO: Replace with generated hero image -->
-![AgentWorld Screenshot](docs/hero.png) -->
+![AgentWorld Demo](https://raw.githubusercontent.com/toneron2/agent-world/main/docs/demo.png)
 
 ## What Is This?
 
 When you run multi-agent sessions — researchers handing off to coders, reviewers catching bugs, deployers shipping — the work is invisible. You get terminal scroll, maybe a log file. You have no idea what's actually happening until it's done.
 
-AgentWorld makes it visible. Agents appear as entities in a spatial world. When one agent sends findings to another, you see it travel. When a tool fires, you see the flash. When agents collaborate, they physically move toward each other. When something fails, it's red and obvious.
+AgentWorld makes it visible. Agents appear as characters in themed rooms. When one agent sends findings to another, you see the message arc across the screen. When a tool fires, you see the flash. When agents collaborate, they physically move toward each other. When something fails, it's red and obvious.
 
-**It works with any provider, any framework, any orchestration pattern.** The system reads from a standard event stream — if your agents emit events, AgentWorld can render them.
+**Works with any provider, any framework, any orchestration pattern.** The system reads from a standard event stream — if your agents emit events, AgentWorld can render them.
 
-### What You See
+## Features
 
-- **Agents** as spatial entities with status rings (thinking, acting, waiting, error)
-- **Messages** as projectiles arcing between sender and receiver
-- **Tool use** as visual effects — flashes on invocation, green/red on success/failure
-- **Artifacts** (files, documents, plans) as objects agents carry and exchange
-- **Thought bubbles** showing what each agent is currently considering
-- **Connection lines** revealing communication patterns between agents
-- **Movement trails** showing where agents have been
+### Agents
+- **Role-based pixel art sprites** — 7 distinct 16x16 designs (researcher, coder, reviewer, tester, deployer, planner, default)
+- **Status-driven animations** — idle bobble, thinking orbit, action flash, waiting sway, error shake
+- **Breathing status rings** — color-coded by state (blue=thinking, green=acting, yellow=waiting, red=error)
+- **Thought bubbles** — see what each agent is currently considering
+- **Movement trails** — fading dots showing where agents have been
+- **Health and energy bars** — visual resource tracking
 
-### How You Interact
+### Communication
+- **Message projectiles** — arcing between sender and receiver with content preview
+- **Connection lines** — reveal communication patterns between agents
+- **Broadcast visualization** — multi-target messages fan out to all recipients
 
-- Click any agent to inspect: role, status, tool count, current thought
-- Follow an agent with the camera as they work
-- Zoom and pan across rooms to see the full picture
-- Watch the event log stream in real-time
+### Tools & Artifacts
+- **Tool use effects** — flash on invocation, green check / red X on completion
+- **File artifacts** — visible objects agents create, carry, and exchange
+- **Artifact transfers** — watch documents flow between agents
+- **Inventory system** — inspect what each agent is carrying (kind icons, quality bars)
+- **Kind-specific styling** — Document, Code, Data, Image, Plan, MessageBundle
+
+### Rooms & Navigation
+- **Themed rooms** — workspace (blue), review (purple), deploy (green) with distinct floor tiles, borders, and corner decorations
+- **Portal transitions** — 3-phase animation (shrink + spin + teleport) with particle effects
+- **Ambient particles** — floating motes in room-themed colors
+- **Desk markers** — subtle workstation areas within rooms
+- **Multi-team clustering** — separate horizontal bands per team with 2500px spacing
+
+### HUD (React/Preact Overlay)
+- **Agent roster** — grouped by team, clickable entries with status dots
+- **Event log** — scrollable, timestamped, color-coded by event type (200 entry buffer)
+- **Inspector panel** — name, role, status, room, health/energy, tools, thought, inventory
+- **Connection status** — live green dot synced from Bevy engine state
+- **Minimap** — bottom-center overlay with proportional agent dots
+
+### Sound
+- **Procedural synthesis** — 8 sound types via Web Audio API (no audio files)
+- Spawn (rising chime), Despawn (falling), Portal (sawtooth sweep), Tool use/ok/fail, Message (ping), Error (alarm)
+- **M key** mute toggle
+
+### Bridge Server
+- **SQLite poller** — reads from any SQLite event database, polls every 500ms
+- **State snapshots** — new clients receive full room + agent state on connect
+- **`--replay` flag** — replay last hour of events on startup
+- **`--team` filter** — watch a specific team only
+- **Auto-creates agents** — tool_use events from unknown agents spawn them automatically
+- **Per-team color palettes** — 5 hue families (blue, green, coral, gold, purple)
+- **Role normalization** — maps Claude Code subagent types to game roles
+
+### Demo Mode
+- **5 agents across 3 rooms** — Researcher, Coder, Reviewer, Tester, Deployer
+- **16-step narrative cycle** — research → code → review → bug found → fix → re-test → deploy
+- **Portal warps** — Coder→Review, Reviewer→Deploy with particle effects
+- **Artifact flow** — Spec document and main.rs pass between agents
+- **No setup needed** — runs offline, no database or bridge required
 
 ## Architecture
 
 ```
 agent-world/
 ├── crates/
-│   ├── core/       # Pure Rust types + event-sourced state (zero framework deps)
-│   └── game/       # Rendering engine: plugins, ECS, spatial systems
+│   ├── core/           # Pure Rust types + event-sourced state (zero deps on Bevy)
+│   │   ├── types.rs    # Agent, Artifact, Room, Portal, Message, Tool, TaskState
+│   │   ├── events.rs   # 19 WorldEvent variants, EventStore with emit/subscribe/replay
+│   │   └── world_state.rs  # Full state projection from event stream
+│   └── game/           # Bevy 0.18 rendering engine
+│       ├── plugins/
+│       │   ├── world.rs      # Room grids, portals, ambient particles, themes
+│       │   ├── agents.rs     # Agent lifecycle, movement, portal transitions
+│       │   ├── visuals.rs    # Thoughts, messages, tools, artifacts, connections
+│       │   ├── camera.rs     # Zoom, pan, agent follow (1-9 keys)
+│       │   ├── hud.rs        # Minimap, help overlay, connection dot
+│       │   ├── events.rs     # Demo scenario, Bevy→React bridge
+│       │   ├── adapter.rs    # WebSocket client, auto-reconnect
+│       │   ├── sprites.rs    # Runtime pixel art from const RGBA arrays
+│       │   ├── sound.rs      # Procedural Web Audio synthesis
+│       │   └── debug.rs      # FPS, agent count, connection mode
+│       └── components.rs     # ECS components
 ├── bridge/
-│   └── server.ts   # Event translator: your events → world events (Bun)
-└── index.html      # Runs in any browser via WASM
+│   └── server.ts       # SQLite → WorldEvents translator (Bun + WebSocket)
+├── frontend/
+│   ├── src/
+│   │   ├── main.tsx    # Preact entry point
+│   │   ├── store.ts    # Reactive state (agents, artifacts, events)
+│   │   ├── ws.ts       # Bevy↔React bridge via window callbacks
+│   │   ├── types.ts    # TypeScript WorldEvent types
+│   │   └── components/ # Roster, EventLog, Inspector, StatusBar
+│   └── dist/           # Built JS (28KB, Bun bundler)
+└── index.html          # WASM entry point, loads Bevy + React overlay
 ```
 
-**Core** — Provider-agnostic types (Agent, Artifact, Tool, Room, Message) and an event-sourced store. World state is a projection of the event stream. Replay and time-travel come free.
+**Core crate** — Provider-agnostic types and an event-sourced store. World state is a projection of the event stream. Replay and time-travel come free. 6 tests.
 
-**Bridge** — Reads from any event source (SQLite, WebSocket, API) and translates into WorldEvents. Ships with a reference bridge for SQLite-based hook systems. Write your own for any event format.
+**Game crate** — 10 Bevy plugins compiled to WASM (WebGL2). Runs in any modern browser. No install, no Electron, no native dependencies.
 
-**Renderer** — Spatial engine compiled to WASM. Runs in any modern browser. No install, no electron, no native dependencies for viewers.
+**Bridge** — Translates your event format into WorldEvents. Ships with a SQLite bridge for Claude Code hooks. Write your own for any event source.
+
+**Frontend** — Preact overlay (28KB) for HUD panels. Bevy forwards events via `window.__agentworld_event()` and syncs state via `window.__agentworld_sync()`.
 
 ## Quick Start
 
 ### Prerequisites
 
-- [Rust](https://rustup.rs/) (1.89+, pinned in `rust-toolchain.toml`)
+- [Rust](https://rustup.rs/) 1.89 (pinned in `rust-toolchain.toml`)
 - WASM target: `rustup target add wasm32-unknown-unknown`
 - [Trunk](https://trunkrs.dev/): `cargo install trunk`
-- [Bun](https://bun.sh/) (for the bridge server, optional)
+- [Bun](https://bun.sh/) (for bridge server + frontend build)
 
-### Demo Mode (no external data needed)
+### Demo Mode
 
 ```bash
+cd frontend && bun install && cd ..
 trunk serve --address 0.0.0.0 --port 8080
-# Open http://localhost:8080 — watch 5 agents run a full dev workflow
+# Open http://localhost:8080
+# Watch 5 agents run a full dev workflow across 3 rooms
 ```
 
-### Live Mode (connect to real agent sessions)
+### Live Mode
 
 ```bash
-# Terminal 1: Start the bridge (reads from your event source)
-./bridge/start.sh --replay
+# Terminal 1: Bridge server (reads your event database)
+bun run bridge/server.ts --replay
 
-# Terminal 2: Start the renderer
+# Terminal 2: WASM renderer
 trunk serve --address 0.0.0.0 --port 8080
 
 # Open http://localhost:8080/?ws=ws://localhost:9090/ws
 ```
 
+### Service Scripts
+
+```bash
+./bin/start.sh          # Demo mode
+./bin/start.sh --live   # Demo + bridge (live data)
+./bin/stop.sh           # Stop all
+./bin/status.sh         # Check running processes
+```
+
 ### Tests
 
 ```bash
-cargo test                      # all tests
-cargo test -p agent-world-core  # core types + event store
+cargo test -p agent-world-core   # Core types + event store (6 tests)
 ```
+
+## Controls
+
+| Key | Action |
+|-----|--------|
+| Scroll | Zoom in/out |
+| Middle mouse drag | Pan camera |
+| 1-9 | Follow agent by index |
+| H | Toggle help overlay |
+| M | Toggle sound mute |
+| Click roster entry | Inspect agent details + inventory |
 
 ## Connecting Your Agents
 
-AgentWorld is **provider-agnostic and framework-agnostic**. Any system that can emit structured events can be visualized. The bridge server translates your event format into WorldEvents.
+AgentWorld is **provider-agnostic**. Any system that emits structured events can be visualized.
+
+### SQLite Bridge (included)
 
 The reference bridge reads from a SQLite database with this schema:
-- `event_category`: agent_spawn, agent_stop, tool_use, message, task_mgmt
-- `agent_name`, `team_name`: who did what, in which group
-- `payload`: JSON with tool names, file paths, message content
 
-Write a bridge adapter for your stack — the WorldEvent protocol is 19 event types covering the full lifecycle of agents, tools, artifacts, messages, and rooms.
+```sql
+CREATE TABLE events (
+  id INTEGER PRIMARY KEY,
+  hook_event_type TEXT,      -- PreToolUse, PostToolUse, SubagentStop
+  event_category TEXT,       -- agent_spawn, agent_stop, tool_use, message, task_mgmt, team_lifecycle
+  team_name TEXT,
+  agent_name TEXT,
+  agent_type TEXT,
+  payload TEXT,              -- JSON: tool_name, tool_input, etc.
+  summary TEXT,
+  timestamp INTEGER
+);
+```
 
-## Roadmap
+### Custom Bridge
 
-- [x] Core type system + event-sourced state (6 tests)
-- [x] Spatial renderer with rooms, agents, portals
-- [x] Full visual language: thoughts, messages, tools, artifacts, trails
-- [x] WebSocket bridge with live event streaming
-- [x] Interactive HUD: roster, inspector, event log
-- [x] Camera controls: zoom, pan, follow, auto-center
-- [x] Demo mode with narrative scenario
-- [ ] Portal transitions (agents moving between rooms)
-- [ ] Sound design
-- [ ] Minimap
-- [ ] Additional bridge adapters (API, file-based, streaming)
-- [ ] Multi-session concurrent visualization
+Write a bridge that emits any of the 19 WorldEvent types over WebSocket:
+
+```
+AgentSpawn, AgentDespawn, AgentMove, AgentStatusChange, AgentThink,
+AgentEquipTool, AgentUseTool, AgentToolResult, AgentPickUp, AgentDrop,
+AgentTransfer, AgentError, ArtifactCreate, ArtifactQualityChange,
+MessageSend, RoomCreate, RoomEnter, RoomExit, HumanCommand
+```
+
+Each event is a JSON object with a single key (the variant name) and the event data as the value. See `crates/core/src/events.rs` for the full type definitions.
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|-----------|
+| Core types | Rust (no framework deps) |
+| Game engine | Bevy 0.18 + WebGL2 |
+| WASM build | Trunk |
+| HUD overlay | Preact + @preact/signals |
+| Frontend build | Bun |
+| Bridge server | Bun + SQLite |
+| Sound | Web Audio API (procedural) |
+| Sprites | Runtime-generated from const pixel arrays |
+
+### Why Rust 1.89?
+
+Bevy 0.18 requires >=1.89, but winit 0.30.12 breaks on >=1.90 with type inference errors. The version is pinned in `rust-toolchain.toml`.
 
 ## Design Principle
 
