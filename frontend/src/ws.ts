@@ -20,16 +20,21 @@ export function setup() {
     }
   };
 
-  // State sync callback: Bevy sends full agent roster every 0.5s
+  // State sync callback: Bevy sends full agent roster + connection state every 0.5s
   (window as any).__agentworld_sync = (json: string) => {
     try {
-      const agentList = JSON.parse(json);
-      syncAgents(agentList);
+      const payload = JSON.parse(json);
+      if (payload.agents) {
+        syncAgents(payload.agents);
+      }
+      if (payload.connection) {
+        connectionState.value = payload.connection;
+      }
     } catch {
       // ignore parse errors
     }
   };
 
-  // Connection state
+  // Initial connection state
   connectionState.value = getWsUrl() ? "connecting" : "disconnected";
 }

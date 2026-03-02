@@ -6,7 +6,7 @@ use agent_world_core::{
 use bevy::prelude::*;
 use crate::components::AgentSprite;
 use crate::plugins::hud::EventLog;
-use crate::plugins::adapter::AdapterConfig;
+use crate::plugins::adapter::{AdapterConfig, ConnectionStatus};
 use std::collections::HashMap;
 
 pub struct EventBridgePlugin;
@@ -545,6 +545,7 @@ impl Default for JsSyncTimer {
 /// This ensures agents are visible even if AgentSpawn events were missed.
 fn sync_agents_to_js(
     agents: Query<&AgentSprite>,
+    conn_status: Res<ConnectionStatus>,
     time: Res<Time>,
     mut sync_timer: ResMut<JsSyncTimer>,
 ) {
@@ -567,13 +568,27 @@ fn sync_agents_to_js(
             })
         }).collect();
 
-        if let Ok(json) = serde_json::to_string(&agent_list) {
+        let conn = match *conn_status {
+            ConnectionStatus::Disconnected => "disconnected",
+            ConnectionStatus::Connecting => "connecting",
+            ConnectionStatus::Connected => "connected",
+            ConnectionStatus::Reconnecting => "reconnecting",
+        };
+
+        let payload = serde_json::json!({
+            "agents": agent_list,
+            "connection": conn,
+        });
+
+        if let Ok(json) = serde_json::to_string(&payload) {
             call_js_sync(&json);
         }
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    let _ = &agents;
+    {
+        let _ = (&agents, &conn_status);
+    }
 }
 
 #[cfg(target_arch = "wasm32")]
