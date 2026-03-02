@@ -1,7 +1,7 @@
 // Event bridge: receives WorldEvents and agent state from Bevy WASM
 // Bevy calls window.__agentworld_event(json) for events
 // and window.__agentworld_sync(json) for periodic agent roster sync.
-import { connectionState, processEvent, syncAgents } from "./store";
+import { connectionState, processEvent, syncAgents, syncArtifacts } from "./store";
 import type { WorldEvent } from "./types";
 
 export function getWsUrl(): string | null {
@@ -26,6 +26,9 @@ export function setup() {
       const payload = JSON.parse(json);
       if (payload.agents) {
         syncAgents(payload.agents);
+      }
+      if (payload.artifacts) {
+        syncArtifacts(payload.artifacts);
       }
       if (payload.connection) {
         connectionState.value = payload.connection;

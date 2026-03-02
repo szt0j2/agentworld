@@ -1,4 +1,4 @@
-import { selectedAgent, agents, type AgentStatus } from "../store";
+import { selectedAgent, agents, artifactsByOwner, type AgentStatus } from "../store";
 
 const STATUS_COLORS: Record<AgentStatus, string> = {
   Idle: "#8888aa",
@@ -68,6 +68,46 @@ export function Inspector() {
           <div class="thought-text">{agent.thought}</div>
         </div>
       )}
+
+      <InventorySection agentId={id} />
+    </div>
+  );
+}
+
+const KIND_ICONS: Record<string, string> = {
+  Document: "📄",
+  Code: "📝",
+  Data: "📊",
+  Image: "🖼",
+  Plan: "📋",
+  MessageBundle: "💬",
+};
+
+const KIND_COLORS: Record<string, string> = {
+  Document: "#e6d999",
+  Code: "#66e680",
+  Data: "#66b3ff",
+  Image: "#e680cc",
+  Plan: "#cc99ff",
+  MessageBundle: "#ffcc4d",
+};
+
+function InventorySection({ agentId }: { agentId: string }) {
+  const items = artifactsByOwner.value.get(agentId);
+  if (!items || items.length === 0) return null;
+
+  return (
+    <div class="inspector-inventory">
+      <span class="inspector-label">Inventory ({items.length})</span>
+      <div class="inventory-grid">
+        {items.map(art => (
+          <div class="inventory-item" key={art.id} title={`${art.name} (${art.kind}) — quality: ${Math.round(art.quality * 100)}%`}>
+            <span class="item-icon">{KIND_ICONS[art.kind] ?? "📦"}</span>
+            <span class="item-name" style={{ color: KIND_COLORS[art.kind] ?? "#aaa" }}>{art.name}</span>
+            <div class="item-quality" style={{ width: `${art.quality * 100}%` }} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

@@ -37,6 +37,20 @@ export interface Room {
   portals: { id: string; target_room: string; position: Position; target_position: Position }[];
 }
 
+export type ArtifactKind = "Document" | "Code" | "Data" | "Image" | "Plan" | "MessageBundle";
+
+export interface Artifact {
+  id: string;
+  name: string;
+  kind: ArtifactKind;
+  content_ref: string;
+  owner: string | null;
+  quality: number;
+  position: Position;
+  room_id: string;
+  sprite: SpriteConfig;
+}
+
 export interface Message {
   id: string;
   from: string;
@@ -58,7 +72,7 @@ export type WorldEvent =
   | { AgentEquipTool: { agent_id: string; tool_id: string } }
   | { AgentUseTool: { agent_id: string; tool_id: string; target: string | null } }
   | { AgentToolResult: { agent_id: string; tool_id: string; success: boolean } }
-  | { ArtifactCreate: unknown }
+  | { ArtifactCreate: Artifact }
   | { AgentPickUp: { agent_id: string; artifact_id: string } }
   | { AgentDrop: { agent_id: string; artifact_id: string; position: Position } }
   | { AgentTransfer: { from_id: string; to_id: string; artifact_id: string } }

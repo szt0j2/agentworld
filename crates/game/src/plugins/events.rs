@@ -545,6 +545,7 @@ impl Default for JsSyncTimer {
 /// This ensures agents are visible even if AgentSpawn events were missed.
 fn sync_agents_to_js(
     agents: Query<&AgentSprite>,
+    artifact_query: Query<&crate::components::ArtifactSprite>,
     conn_status: Res<ConnectionStatus>,
     time: Res<Time>,
     mut sync_timer: ResMut<JsSyncTimer>,
@@ -568,6 +569,16 @@ fn sync_agents_to_js(
             })
         }).collect();
 
+        let artifact_list: Vec<serde_json::Value> = artifact_query.iter().map(|a| {
+            serde_json::json!({
+                "id": a.artifact_id,
+                "name": a.name,
+                "kind": format!("{:?}", a.kind),
+                "owner": a.owner,
+                "quality": a.quality,
+            })
+        }).collect();
+
         let conn = match *conn_status {
             ConnectionStatus::Disconnected => "disconnected",
             ConnectionStatus::Connecting => "connecting",
@@ -577,6 +588,7 @@ fn sync_agents_to_js(
 
         let payload = serde_json::json!({
             "agents": agent_list,
+            "artifacts": artifact_list,
             "connection": conn,
         });
 
@@ -587,7 +599,7 @@ fn sync_agents_to_js(
 
     #[cfg(not(target_arch = "wasm32"))]
     {
-        let _ = (&agents, &conn_status);
+        let _ = (&agents, &artifact_query, &conn_status);
     }
 }
 
