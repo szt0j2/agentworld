@@ -2,8 +2,6 @@
 
 **Spatial visualization for multi-agent AI systems.** Watch your agents think, communicate, and collaborate in a living world — not a log file.
 
-> Copyright 2026 TODOMODO.IO AGENCY LLC. Released under the MIT License.
-
 ![AgentWorld Overview](docs/images/hero.png)
 
 AgentWorld transforms invisible AI orchestration into something you can *point at*. Agents appear as distinct characters in themed rooms. Messages arc visibly between them. Tool invocations flash. Errors turn red. When five agents are coordinating across three workspaces, you see the whole picture at a glance.
